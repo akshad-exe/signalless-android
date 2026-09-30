@@ -48,12 +48,12 @@ internal object DefaultApkDownloadSources {
             id = GITHUB_ID,
             displayName = "GitHub Releases",
             latestApkUrls = listOf(
-                "https://github.com/permissionlesstech/SignalLess-android/releases/latest/" +
-                    "download/SignalLess-android-universal.apk",
+                "https://github.com/akshad-exe/signalless-android/releases/latest/" +
+                    "download/signalless-android-universal.apk",
                 // Releases published before the stable asset-name rollout use
                 // this filename. Remove when supported releases all use the primary URL.
-                "https://github.com/permissionlesstech/SignalLess-android/releases/latest/" +
-                    "download/app-universal-release.apk"
+                "https://github.com/akshad-exe/signalless-android/releases/latest/" +
+                    "download/signalless-android-universal-unsigned.apk"
             )
         )
     )

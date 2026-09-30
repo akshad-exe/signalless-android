@@ -37,7 +37,7 @@ internal class GitHubReleaseClient(
     companion object {
         private const val TAG = "GitHubRelease"
         private const val GITHUB_API_URL =
-            "https://api.github.com/repos/permissionlesstech/SignalLess-android/releases/latest"
+            "https://api.github.com/repos/akshad-exe/signalless-android/releases/latest"
         private const val ROUTE_READY_TIMEOUT_MILLIS = 60_000L
         private const val CACHE_TTL_MILLIS = 30 * 60_000L
         private const val PREFS_NAME = "apk_release_metadata"
@@ -47,8 +47,8 @@ internal class GitHubReleaseClient(
         private val SOURCE = ApkDownloadSource(
             id = DefaultApkDownloadSources.GITHUB_ID,
             displayName = "GitHub Releases",
-            latestApkUrl = "https://github.com/permissionlesstech/SignalLess-android/releases/latest/" +
-                "download/SignalLess-android-universal.apk"
+            latestApkUrl = "https://github.com/akshad-exe/signalless-android/releases/latest/" +
+                "download/signalless-android-universal.apk"
         )
 
         internal fun parseRelease(jsonString: String): Release? = runCatching {

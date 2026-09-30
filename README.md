@@ -60,7 +60,7 @@ On a memory-constrained machine:
 ```sh
 ANDROID_HOME=$PATH_TO_ANDROID_SDK ./gradlew :app:packageDebug \
   --no-parallel --max-workers=2 \
-  -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=512m" \
+  -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=768m" \
   -Dkotlin.daemon.jvmargs="-Xmx768m"
 ```
 

@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TAG="${1:?usage: verify-github-release.sh TAG [--no-rebuild]}"
 MODE="${2:-}"
-REPOSITORY="${BITCHAT_GITHUB_REPOSITORY:-permissionlesstech/bitchat-android}"
+REPOSITORY="${SIGNALLESS_GITHUB_REPOSITORY:-akshad-exe/signalless-android}"
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
@@ -37,23 +37,21 @@ mkdir -p "$DOWNLOAD_DIR"
 gh release download "$TAG" \
   --repo "$REPOSITORY" \
   --dir "$DOWNLOAD_DIR" \
-  --pattern 'BITCHAT_BUILDINFO.json' \
-  --pattern 'BITCHAT_SHA256SUMS' \
-  --pattern 'BITCHAT_SHA256SUMS.unsigned' \
-  --pattern 'bitchat-android-*.apk' \
-  --pattern 'bitchat-android-*.aab'
+  --pattern 'SIGNALLESS_BUILDINFO.json' \
+  --pattern 'SIGNALLESS_SHA256SUMS' \
+  --pattern 'SIGNALLESS_SHA256SUMS.unsigned' \
+  --pattern 'signalless-android-*.apk' \
+  --pattern 'signalless-android-*.aab'
 
 attested_artifacts=(
-  BITCHAT_BUILDINFO.json
-  BITCHAT_SHA256SUMS.unsigned
-  bitchat-android-arm64-unsigned.apk
-  bitchat-android-armv7-unsigned.apk
-  bitchat-android-release-unsigned.aab
-  bitchat-android-universal-unsigned.apk
-  bitchat-android-wear-release-unsigned.aab
-  bitchat-android-wear-unsigned.apk
-  bitchat-android-x86-unsigned.apk
-  bitchat-android-x86_64-unsigned.apk
+  SIGNALLESS_BUILDINFO.json
+  SIGNALLESS_SHA256SUMS.unsigned
+  signalless-android-arm64-unsigned.apk
+  signalless-android-armv7-unsigned.apk
+  signalless-android-release-unsigned.aab
+  signalless-android-universal-unsigned.apk
+  signalless-android-x86-unsigned.apk
+  signalless-android-x86_64-unsigned.apk
 )
 for artifact in "${attested_artifacts[@]}"; do
   if [ ! -f "$DOWNLOAD_DIR/$artifact" ]; then
@@ -66,13 +64,13 @@ echo "GitHub provenance attestations for the canonical unsigned build verified."
 
 (
   cd "$DOWNLOAD_DIR"
-  "${SHA256[@]}" -c BITCHAT_SHA256SUMS
+  "${SHA256[@]}" -c SIGNALLESS_SHA256SUMS
 )
 echo "GitHub release checksums verified."
 
-mv "$DOWNLOAD_DIR/BITCHAT_BUILDINFO.json" "$DOWNLOAD_DIR/BUILDINFO.json"
-mv "$DOWNLOAD_DIR/BITCHAT_SHA256SUMS" "$DOWNLOAD_DIR/SHA256SUMS"
-mv "$DOWNLOAD_DIR/BITCHAT_SHA256SUMS.unsigned" "$DOWNLOAD_DIR/SHA256SUMS.unsigned"
+mv "$DOWNLOAD_DIR/SIGNALLESS_BUILDINFO.json" "$DOWNLOAD_DIR/BUILDINFO.json"
+mv "$DOWNLOAD_DIR/SIGNALLESS_SHA256SUMS" "$DOWNLOAD_DIR/SHA256SUMS"
+mv "$DOWNLOAD_DIR/SIGNALLESS_SHA256SUMS.unsigned" "$DOWNLOAD_DIR/SHA256SUMS.unsigned"
 
 if [ "$MODE" = "--no-rebuild" ]; then
   exit 0

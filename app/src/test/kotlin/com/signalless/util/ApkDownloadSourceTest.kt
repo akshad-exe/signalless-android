@@ -24,13 +24,13 @@ class ApkDownloadSourceTest {
     @Test
     fun `default source downloads the stable latest universal asset directly`() {
         assertEquals(
-            "https://github.com/permissionlesstech/SignalLess-android/releases/latest/" +
-                "download/SignalLess-android-universal.apk",
+            "https://github.com/akshad-exe/signalless-android/releases/latest/" +
+                "download/signalless-android-universal.apk",
             DefaultApkDownloadSources.all.single().latestApkUrls.first()
         )
         assertEquals(
-            "https://github.com/permissionlesstech/SignalLess-android/releases/latest/" +
-                "download/app-universal-release.apk",
+            "https://github.com/akshad-exe/signalless-android/releases/latest/" +
+                "download/signalless-android-universal-unsigned.apk",
             DefaultApkDownloadSources.all.single().latestApkUrls[1]
         )
     }

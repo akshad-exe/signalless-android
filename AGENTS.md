@@ -55,21 +55,16 @@ with a specific destination.
 
 `app/` is the Kotlin/Compose phone client; its main packages cover UI, services,
 BLE/Wi-Fi mesh, protocol, Noise/crypto, identity, Nostr, geohash, and media.
-`wear/` is the Wear OS client. Module resources live in `src/main/`
+It is the only Gradle module. Module resources live in `src/main/`
 and JVM tests in `src/test/`. Specifications are in `docs/`; tooling is in
-`tools/`.
-
-`app/` is the source of truth for shared mesh/protocol code.
-`syncSharedAppSources` generates `wear/build/sharedSrc` from the include list
-in `wear/build.gradle.kts`. Extend that list; never copy shared
-Kotlin into `wear/src/` or edit generated `build/` content.
+`tools/`. `docs/` is local-only and is not tracked in Git.
 
 ## Build, Test & Development Commands
 
 Use JDK 21 and the Android SDK versions in `gradle/libs.versions.toml`.
 
 ```sh
-./gradlew :app:assembleDebug :wear:assembleDebug
+./gradlew :app:packageDebug
 ./gradlew testDebugUnitTest lintDebug
 ./gradlew connectedAndroidTest
 ./gradlew clientRewriteContractTest
@@ -100,7 +95,7 @@ relays, live user data, and nondeterministic completion. See
 Changes affecting discovery, routing, transports, Noise/crypto, identity,
 foreground-service power, messaging, transfers, packets, or fragmentation
 require Mesh Lab validation on physical devices. Debug-only hooks live in
-`app/src/debug/` and `wear/src/debug/`; never move them into release sources.
+`app/src/debug/`; never move them into release sources.
 
 ```sh
 python3 tools/release_gate/mesh_lab.py setup \
@@ -109,9 +104,9 @@ python3 tools/release_gate/mesh_lab.py scenario all \
   --serial-a <device-a> --serial-b <device-b> --out /tmp/mesh-evidence
 ```
 
-For phone-to-watch interop, replace `--serial-b` with `--serial-watch` and add
-`--watch-apk`. Keep devices unlocked and awake. Follow the Mesh Lab appendix in
-`docs/release-gate-runbook.md`; raw evidence and logcat must remain local.
+Both devices must be phones on the same build. Keep them unlocked and awake.
+Follow the Mesh Lab appendix in `docs/release-gate-runbook.md`; raw evidence
+and logcat must remain local.
 
 ## Commits, Pull Requests & Privacy
 

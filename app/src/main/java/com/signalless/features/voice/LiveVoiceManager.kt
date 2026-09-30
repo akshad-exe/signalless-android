@@ -63,7 +63,7 @@ sealed interface LiveVoiceEvent {
     ) : LiveVoiceEvent
 }
 
-/** Shared phone/Wear receiver: bounded assembly, live playback, bubble state and note absorption. */
+/** Shared receiver: bounded assembly, live playback, bubble state and note absorption. */
 class LiveVoiceManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "LiveVoiceManager"

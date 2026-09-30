@@ -54,7 +54,7 @@ if [ -z "${ANDROID_NDK_HOME:-}" ]; then
 fi
 export ANDROID_NDK_HOME
 
-# Min SDK version (must match bitchat-android minSdk)
+# Min SDK version (must match signalless-android minSdk)
 MIN_SDK_VERSION=26
 
 # Keep host paths and timestamps out of Rust objects and panic-location strings.
@@ -65,7 +65,7 @@ if ! [[ "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
 fi
 CARGO_HOME_PATH="${CARGO_HOME:-$HOME/.cargo}"
 REPRO_RUSTFLAGS=(
-  "--remap-path-prefix=$PROJECT_ROOT=/usr/src/bitchat-android"
+  "--remap-path-prefix=$PROJECT_ROOT=/usr/src/signalless-android"
   "--remap-path-prefix=$ARTI_SOURCE_DIR=/usr/src/arti"
   "--remap-path-prefix=$CARGO_HOME_PATH=/usr/local/cargo"
 )

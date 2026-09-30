@@ -2,7 +2,7 @@
 """ADB-driven mesh test orchestrator for two (or more) live devices.
 
 Drives the debug-only TestHookReceiver in the app
-(intent action: com.bitchat.droid.TEST_HOOK) to perform mesh operations:
+(intent action: com.signalless.app.TEST_HOOK) to perform mesh operations:
 peer scanning, connect, Noise handshake, DMs, file transfer, broadcast,
 announce, and raw packet injection.
 
@@ -38,15 +38,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from tools.release_gate.android_lab import APPLICATION_ID, find_adb, run_adb
 
-TEST_HOOK_ACTION = "com.bitchat.droid.TEST_HOOK"
-TEST_HOOK_COMPONENT = f"{APPLICATION_ID}/com.bitchat.android.testhook.TestHookReceiver"
+TEST_HOOK_ACTION = "com.signalless.app.TEST_HOOK"
+TEST_HOOK_COMPONENT = f"{APPLICATION_ID}/com.signalless.app.testhook.TestHookReceiver"
 RESULTS_DIR = "cache/testhook/results"
 DEVICE_TMP_DIR = "/data/local/tmp/meshlab"
 APP_FIXTURE_DIR = f"/data/data/{APPLICATION_ID}/cache/fixtures"
-
-WATCH_APPLICATION_ID = "com.bitchat.watch"
-WATCH_TEST_HOOK_ACTION = "com.bitchat.watch.TEST_HOOK"
-WATCH_TEST_HOOK_COMPONENT = f"{WATCH_APPLICATION_ID}/com.bitchat.watch.testhook.WearTestHookReceiver"
 
 PERMISSIONS = [
     "android.permission.BLUETOOTH_SCAN",
@@ -59,22 +55,11 @@ PERMISSIONS = [
     "android.permission.RECORD_AUDIO",
 ]
 
-WATCH_PERMISSIONS = [
-    "android.permission.BLUETOOTH_SCAN",
-    "android.permission.BLUETOOTH_CONNECT",
-    "android.permission.BLUETOOTH_ADVERTISE",
-    "android.permission.POST_NOTIFICATIONS",
-    "android.permission.RECORD_AUDIO",
-]
-
-
 class MeshLabError(Exception):
     pass
 
-
 def _shell(serial: str, command: str) -> str:
     return run_adb(serial, ["shell", command])
-
 
 class Device:
     """One ADB-connected device running a debug build with the test hook."""
@@ -87,7 +72,7 @@ class Device:
         hook_action: str = TEST_HOOK_ACTION,
         hook_component: str = TEST_HOOK_COMPONENT,
         permissions: list[str] = PERMISSIONS,
-        activity_component: str = f"{APPLICATION_ID}/com.bitchat.android.MainActivity",
+        activity_component: str = f"{APPLICATION_ID}/com.signalless.app.MainActivity",
     ):
         self.serial = serial
         self.alias = alias
@@ -126,9 +111,9 @@ class Device:
     def launch(self) -> None:
         """Launch the app and verify it is actually top-resumed.
 
-        A background/cached process can be frozen by the system (observed on Wear OS),
-        which silently hangs test-hook commands; the foreground activity (and the FGS it
-        starts) keeps the process unfrozen.
+        A background/cached process can be frozen by the system under aggressive
+        cached-app freezing, which silently hangs test-hook commands; the foreground
+        activity (and the FGS it starts) keeps the process unfrozen.
         """
         for _attempt in range(3):
             _shell(self.serial, f"monkey -p {self.package} -c android.intent.category.LAUNCHER 1")
@@ -263,45 +248,6 @@ class Device:
     def logcat_dump(self, lines: int = 200) -> str:
         return _shell(self.serial, f"logcat -d -t {lines}")
 
-
-class WatchDevice(Device):
-    """Pixel Watch running the com.bitchat.watch debug build.
-
-    Same test-hook protocol as the phone; different package/hook, a smaller permission
-    set (Bluetooth + notifications only), and wake tweaks that skip phone-only keyguard
-    commands. File-transfer scenarios are not supported on the watch yet (M5 deferred).
-    """
-
-    def __init__(self, serial: str, alias: str = "watch"):
-        super().__init__(
-            serial,
-            alias,
-            package=WATCH_APPLICATION_ID,
-            hook_action=WATCH_TEST_HOOK_ACTION,
-            hook_component=WATCH_TEST_HOOK_COMPONENT,
-            permissions=WATCH_PERMISSIONS,
-            activity_component=f"{WATCH_APPLICATION_ID}/.MainActivity",
-        )
-
-    def wake(self) -> None:
-        # Keep the screen on while on the charging puck; otherwise Wear shows the
-        # charging activity on top, our app loses foreground, and the OS freezes the
-        # process (cached-app freezer), silently hanging test-hook commands.
-        _shell(self.serial, "settings put global stay_on_while_plugged_in 3")
-        _shell(self.serial, "svc power stayon true")
-        _shell(self.serial, "settings put system screen_off_timeout 600000")
-        _shell(self.serial, "input keyevent KEYCODE_WAKEUP")
-
-
-# MARK: - fixtures
-
-FIXTURE_SIZES = {
-    "small_1k.bin": 1_024,
-    "medium_512k.bin": 512 * 1_024,
-    "large_2m.bin": 2 * 1_024 * 1_024,
-}
-
-
 def make_fixtures(directory: Path, seed: int = 1337, names: list[str] | None = None) -> dict[str, dict]:
     directory.mkdir(parents=True, exist_ok=True)
     fixtures = {}
@@ -315,7 +261,6 @@ def make_fixtures(directory: Path, seed: int = 1337, names: list[str] | None = N
         path.write_bytes(data)
         fixtures[name] = {"path": path, "sha256": hashlib.sha256(data).hexdigest(), "bytes": size}
     return fixtures
-
 
 def make_private_media_fixtures(directory: Path, seed: int = 7331) -> dict[str, dict]:
     """Small attachment fixtures covering every private-media UI type."""
@@ -337,7 +282,6 @@ def make_private_media_fixtures(directory: Path, seed: int = 7331) -> dict[str, 
             "mime": mime,
         }
     return fixtures
-
 
 # MARK: - setup
 
@@ -364,10 +308,8 @@ def setup_pair(
         device.cmd_ok("set_nickname", name=nickname)
     wait_for_mutual_discovery(a, b)
 
-
 def whoami(device: Device) -> dict:
     return device.cmd_ok("whoami")
-
 
 def wait_for_peer(device: Device, peer_id: str, timeout_s: int = 90) -> dict:
     deadline = time.monotonic() + timeout_s
@@ -380,7 +322,6 @@ def wait_for_peer(device: Device, peer_id: str, timeout_s: int = 90) -> dict:
         time.sleep(3)
     raise MeshLabError(f"[{device.alias}] peer {peer_id} not discovered within {timeout_s}s")
 
-
 def wait_for_mutual_discovery(a: Device, b: Device) -> None:
     id_a = whoami(a)["peer_id"]
     id_b = whoami(b)["peer_id"]
@@ -389,7 +330,6 @@ def wait_for_mutual_discovery(a: Device, b: Device) -> None:
         fb = pool.submit(wait_for_peer, b, id_a)
         fa.result()
         fb.result()
-
 
 # MARK: - scenarios
 
@@ -422,7 +362,6 @@ def scenario_dm(a: Device, b: Device) -> dict:
         "a_to_b": {"send": send_result, "recv": recv_result},
         "b_to_a": {"send": send_result2, "recv": recv_result2},
     }
-
 
 def scenario_favorite_verification(a: Device, b: Device) -> dict:
     """Assert the three-state favorite exchange and local cryptographic verification."""
@@ -518,7 +457,6 @@ def scenario_favorite_verification(a: Device, b: Device) -> dict:
         },
     }
 
-
 def scenario_broadcast(a: Device, b: Device) -> dict:
     """Public broadcast from A received by B."""
     id_a = whoami(a)["peer_id"]
@@ -530,7 +468,6 @@ def scenario_broadcast(a: Device, b: Device) -> dict:
         recv_result, send_result = recv.result(), send.result()
     assert recv_result["from"] == id_a, recv_result
     return {"send": send_result, "recv": recv_result}
-
 
 def _ptt_one_way(
     sender: Device,
@@ -599,7 +536,6 @@ def _ptt_one_way(
         raise MeshLabError(f"live {scope} decoded tone continuity is distorted: {recv_result}")
     return {"send": send_result, "recv": recv_result}
 
-
 def scenario_ptt_dm(a: Device, b: Device) -> dict:
     """Gap-free Noise-encrypted PTT tone plus finalized note in both directions."""
     id_a = whoami(a)["peer_id"]
@@ -611,7 +547,6 @@ def scenario_ptt_dm(a: Device, b: Device) -> dict:
         "b_to_a": _ptt_one_way(b, a, id_b, id_a, "dm"),
     }
 
-
 def scenario_ptt_broadcast(a: Device, b: Device) -> dict:
     """Gap-free signed public PTT tone plus finalized note in both directions."""
     id_a = whoami(a)["peer_id"]
@@ -620,7 +555,6 @@ def scenario_ptt_broadcast(a: Device, b: Device) -> dict:
         "a_to_b": _ptt_one_way(a, b, id_a, id_b, "public"),
         "b_to_a": _ptt_one_way(b, a, id_b, id_a, "public"),
     }
-
 
 def scenario_file(
     a: Device,
@@ -656,7 +590,6 @@ def scenario_file(
             )
     return results
 
-
 def scenario_private_media(a: Device, b: Device) -> dict:
     """Voice, image, and generic file sends through the private-chat contact ID."""
     identity = whoami(b)
@@ -673,13 +606,11 @@ def scenario_private_media(a: Device, b: Device) -> dict:
         recipient=conversation_id,
     )
 
-
 def scenario_raw(a: Device, b: Device) -> dict:
     """Raw packet injection (unsigned announce-type packet) reaches the mesh."""
     payload = b"meshlab-raw-" + uuid.uuid4().hex[:8].encode()
     result = a.cmd_ok("raw_send", 30_000, type="05", payload_hex=payload.hex())
     return {"send": result}
-
 
 # MARK: - session / identity churn scenarios
 
@@ -702,7 +633,6 @@ def _dm_roundtrip(a: Device, b: Device, id_a: str, id_b: str) -> dict:
     assert token_ba in recv_ba["content"], recv_ba
     return {"a_to_b": recv_ab, "b_to_a": recv_ba}
 
-
 def wait_session_established(device: Device, peer_id: str, timeout_s: int = 90) -> dict:
     deadline = time.monotonic() + timeout_s
     last: dict = {}
@@ -714,7 +644,6 @@ def wait_session_established(device: Device, peer_id: str, timeout_s: int = 90) 
     raise MeshLabError(
         f"[{device.alias}] session with {peer_id} not established within {timeout_s}s (last: {last})"
     )
-
 
 def ensure_direct_link(a: Device, b: Device, id_a: str, id_b: str) -> None:
     """Wait for rediscovery, then force a direct GATT connection both ways.
@@ -749,7 +678,6 @@ def ensure_direct_link(a: Device, b: Device, id_a: str, id_b: str) -> None:
         if not connected:
             raise MeshLabError(f"[{device.alias}] no direct link to {peer}: connect={last}")
 
-
 def force_handshake(device: Device, peer_id: str, attempts: int = 5, per_attempt_s: int = 20) -> dict:
     """Retry explicit handshakes; inits can be lost while links settle."""
     last: dict = {}
@@ -759,7 +687,6 @@ def force_handshake(device: Device, peer_id: str, attempts: int = 5, per_attempt
             return last
         time.sleep(2)
     raise MeshLabError(f"[{device.alias}] handshake with {peer_id} failed after {attempts} attempts (last: {last})")
-
 
 def scenario_session_recovery(a: Device, b: Device) -> dict:
     """Process death on B: identity must persist, in-memory Noise sessions are lost.
@@ -814,7 +741,6 @@ def scenario_session_recovery(a: Device, b: Device) -> dict:
         "recovered": recovered,
     }
 
-
 def scenario_identity_reset(a: Device, b: Device) -> dict:
     """pm clear on B mid-session: new identity, rediscovery, fresh handshake and DMs."""
     id_a = whoami(a)["peer_id"]
@@ -849,7 +775,6 @@ def scenario_identity_reset(a: Device, b: Device) -> dict:
         "stale_session_on_a": stale,
     }
 
-
 def scenario_file_oversize(a: Device, b: Device, fixtures: dict[str, dict]) -> dict:
     """Oversized broadcast file must be rejected sender-side (>256 fragments)."""
     fixture = fixtures["medium_512k.bin"]
@@ -863,7 +788,6 @@ def scenario_file_oversize(a: Device, b: Device, fixtures: dict[str, dict]) -> d
     if recv.get("status") == "ok":
         raise MeshLabError(f"receiver unexpectedly saved an oversized file: {recv}")
     return {"send": send, "receiver_saw_file": False}
-
 
 SCENARIOS = {
     "dm": scenario_dm,
@@ -893,27 +817,11 @@ SCENARIOS = {
     "identity_reset": scenario_identity_reset,
 }
 
-# Scenarios supported when device B is a watch (file scenarios are receive-only: phone sends,
-# the watch must receive with matching digests).
-WATCH_SCENARIOS = [
-    "dm",
-    "favorite_verification",
-    "broadcast",
-    "ptt_dm",
-    "ptt_broadcast",
-    "raw",
-    "file",
-    "file_private",
-    "session_recovery",
-    "identity_reset",
-]
-
-
 def run_scenario(name: str, a: Device, b: Device, out: Path | None) -> dict:
     started = time.time()
     evidence: dict[str, object] = {"scenario": name, "devices": [a.alias, b.alias]}
     try:
-        supported = WATCH_SCENARIOS if isinstance(b, WatchDevice) else list(SCENARIOS)
+        supported = list(SCENARIOS)
         if name == "all":
             results = {}
             failures = []
@@ -940,7 +848,6 @@ def run_scenario(name: str, a: Device, b: Device, out: Path | None) -> dict:
         (out / f"{name}-evidence.json").write_text(json.dumps(evidence, indent=2, default=str))
     return evidence
 
-
 # MARK: - CLI
 
 def build_parser() -> argparse.ArgumentParser:
@@ -950,9 +857,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup = commands.add_parser("setup", help="install, grant, launch, nickname, discover")
     setup.add_argument("--serial-a", required=True)
     setup.add_argument("--serial-b")
-    setup.add_argument("--serial-watch", help="watch serial; used as device B (overrides --serial-b)")
     setup.add_argument("--apk", type=Path, default=None)
-    setup.add_argument("--watch-apk", type=Path, default=None)
     setup.add_argument("--nickname-a", default="alice")
     setup.add_argument("--nickname-b", default="bob")
 
@@ -960,7 +865,6 @@ def build_parser() -> argparse.ArgumentParser:
     scenario.add_argument("name", choices=[*SCENARIOS.keys(), "all"])
     scenario.add_argument("--serial-a", required=True)
     scenario.add_argument("--serial-b")
-    scenario.add_argument("--serial-watch", help="watch serial; used as device B (overrides --serial-b)")
     scenario.add_argument("--out", type=Path, default=None, help="evidence output directory")
 
     raw = commands.add_parser("cmd", help="send a raw test-hook command to one device")
@@ -971,26 +875,20 @@ def build_parser() -> argparse.ArgumentParser:
     raw.add_argument("--timeout-ms", type=int, default=60_000)
     return parser
 
-
 def _resolve_devices(args: argparse.Namespace) -> tuple[Device, Device]:
-    """Device A is always the phone; device B is a watch when --serial-watch is given."""
+    """Device A is the phone; device B is the second phone."""
     a = Device(args.serial_a, "alpha")
-    if getattr(args, "serial_watch", None):
-        return a, WatchDevice(args.serial_watch)
     if not getattr(args, "serial_b", None):
-        raise MeshLabError("either --serial-b or --serial-watch is required")
+        raise MeshLabError("--serial-b is required")
     return a, Device(args.serial_b, "beta")
-
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "setup":
             a, b = _resolve_devices(args)
-            nickname_b = "watch" if isinstance(b, WatchDevice) and args.nickname_b == "bob" else args.nickname_b
             setup_pair(
-                a, b, args.apk, args.nickname_a, nickname_b,
-                apk_b=args.watch_apk if isinstance(b, WatchDevice) else None,
+                a, b, args.apk, args.nickname_a, args.nickname_b,
             )
             print(json.dumps({"status": "ok", "step": "setup"}))
         elif args.command == "scenario":
@@ -1014,7 +912,6 @@ def main(argv: list[str] | None = None) -> int:
     except MeshLabError as error:
         print(f"mesh lab error: {error}", file=sys.stderr)
         return 2
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
