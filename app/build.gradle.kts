@@ -7,8 +7,8 @@ plugins {
 }
 
 val githubReleaseCertSha256 = providers
-    .environmentVariable("BITCHAT_GITHUB_RELEASE_CERT_SHA256")
-    .orElse(providers.gradleProperty("BITCHAT_GITHUB_RELEASE_CERT_SHA256"))
+    .environmentVariable("SIGNALLESS_GITHUB_RELEASE_CERT_SHA256")
+    .orElse(providers.gradleProperty("SIGNALLESS_GITHUB_RELEASE_CERT_SHA256"))
     .orElse("")
 val normalizedGithubReleaseCertSha256 = githubReleaseCertSha256.get()
     .replace(":", "")
@@ -18,16 +18,16 @@ require(
     normalizedGithubReleaseCertSha256.isEmpty() ||
         normalizedGithubReleaseCertSha256.matches(Regex("[a-f0-9]{64}"))
 ) {
-    "BITCHAT_GITHUB_RELEASE_CERT_SHA256 must be a SHA-256 certificate fingerprint"
+    "SIGNALLESS_GITHUB_RELEASE_CERT_SHA256 must be a SHA-256 certificate fingerprint"
 }
 
 android {
-    namespace = "com.bitchat.android"
+    namespace = "com.signalless.app"
     compileSdk = libs.versions.compileSdk.get().toInt()
     buildToolsVersion = libs.versions.buildTools.get()
 
     defaultConfig {
-        applicationId = "com.bitchat.droid"
+        applicationId = "com.signalless.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 39

@@ -74,3 +74,6 @@ tools/arti-build/target/
 
 # JVM heap dumps (a Gradle daemon OOM drops these in the repo root)
 *.hprof
+
+# Local-only engineering docs (kept out of the published repo)
+docs/

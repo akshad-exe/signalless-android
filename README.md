@@ -1,105 +1,142 @@
-<img width="256" height="256" alt="icon_128x128@2x" src="https://github.com/user-attachments/assets/90133f83-b4f6-41c6-aab9-25d0859d2a47" />
+# SignalLess for Android
 
-## bitchat for Android
+Offline-first, peer-to-peer campus messaging. Messages travel over a local
+Bluetooth mesh when there is no network, and fall back to Nostr relays when one
+is available. No accounts, no phone numbers, no central servers.
 
-A decentralized peer-to-peer messaging app with dual transport architecture: local Bluetooth mesh networks for offline communication and internet-based Nostr protocol for global reach. No accounts, no phone numbers, no central servers.
+SignalLess is built on the mesh transport, Noise XX encryption, and binary wire
+protocol of [BitChat for Android](https://github.com/permissionlesstech/bitchat-android).
+See [NOTICE](NOTICE) for attribution and licensing.
 
-This is the Android implementation of bitchat, fully protocol-compatible with the [iOS version](https://github.com/permissionlesstech/bitchat) for cross-platform mesh communication.
+## Status
 
-[bitchat.free](http://bitchat.free)
+This is a working fork with an Android-only build. It compiles and its unit
+suite passes (572 tests, 0 failures), including the protocol golden vectors.
 
-[GitHub Releases](https://github.com/permissionlesstech/bitchat-android/releases)
+Not yet done:
 
-[<img alt="Get it on Google Play" height="60" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"/>](https://play.google.com/store/apps/details?id=com.bitchat.droid)
-
-## See it in action
-
-<table>
-  <tr>
-    <th>Offline mesh conversation</th>
-    <th>Geohash globe picker</th>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/readme-mesh-chat.png" alt="Active four-peer Bitchat mesh conversation with an image, voice messages, and text messages" width="360"/></td>
-    <td><img src="docs/screenshots/readme-geohash-globe.png" alt="Bitchat geohash location picker showing the whole Earth and geohash grid" width="360"/></td>
-  </tr>
-</table>
-
-## License
-
-This project is released into the public domain. See the [LICENSE](LICENSE.md) file for details.
+- **Durable outbox.** Queued messages live in memory, so an unsent message is
+  lost if the process dies. Wiring a SQLite outbox is the top priority.
+- **Emergency SOS.** No priority-broadcast packet type.
+- **Scored transport selection.** Transports are picked by binary
+  ready/connected checks rather than link quality.
+- **Hardware validation.** No Mesh Lab run has been performed on this fork.
+  Upstream BitChat is validated on physical devices; these changes are not.
 
 ## Features
 
-- **Dual Transport Architecture**: Bluetooth LE mesh for offline messaging, Nostr relays for internet-based messaging
-- **Location-Based Channels**: Geographic chat rooms using geohash coordinates over Nostr relays
-- **Intelligent Message Routing**: Automatically chooses the best transport, with queuing and retry when a peer is unreachable
-- **End-to-End Encryption**: [Noise Protocol](https://noiseprotocol.org) (XX pattern, X25519 + ChaCha20-Poly1305) for private messages over the mesh
-- **Decentralized Mesh Network**: Automatic peer discovery and multi-hop relay over Bluetooth LE (max 7 hops)
-- **Wi-Fi Aware Transport**: Higher-bandwidth local mesh on supported devices
-- **Channel Chats**: Topic-based group messaging with optional password protection (Argon2id + AES-256-GCM)
-- **IRC-Style Commands**: Familiar `/join`, `/msg`, `/who` style interface
-- **Tor Support**: Built-in Tor (Arti) for private internet connectivity
-- **Emergency Wipe**: Triple-tap to instantly clear all data
-- **Cross-Platform**: Binary protocol compatible with bitchat on iOS and macOS
-
-## Technical Architecture
-
-### Bluetooth Mesh Network (Offline)
-
-- Direct peer-to-peer within Bluetooth range, multi-hop relay through nearby devices
-- Noise Protocol sessions with forward secrecy; peer identities derived from static keys
-- Compact binary packet format with fragmentation, TTL routing, and deduplication
-- Adaptive duty cycling and connection limits for battery efficiency
-- Foreground service keeps the mesh alive within Android background execution limits
-
-### Nostr Protocol (Internet)
-
-- Global reach via public relays, geohash-based location channels
-- Private messages fall back to Nostr for mutual favorites when the mesh is unavailable
-- Ephemeral keys per geohash area
-
-### Android Stack
-
-- Kotlin, Jetpack Compose (Material 3), MVVM
-- Coroutines and Flow for all networking and state
-- Core components: `MeshForegroundService` (persistent connectivity), `BluetoothMeshService` / `WifiAwareMeshService` (transports), `UnifiedMeshService` (transport selection), `NoiseSessionManager` (encryption sessions), `MessageRouter` (mesh/Nostr routing with outbox retry)
+- **Dual transport.** Bluetooth LE mesh for offline messaging, Nostr relays for
+  internet reach, with automatic fallback between them.
+- **Wi-Fi Aware.** Higher-bandwidth local mesh on supported devices.
+- **End-to-end encryption.** Noise XX (X25519 + ChaCha20-Poly1305) for private
+  messages, with forward secrecy per session.
+- **Decentralized mesh.** Automatic peer discovery and multi-hop relay, up to
+  7 hops.
+- **Media.** Images, audio, and files up to ~9.8 MB, fragmented and relayed over
+  the mesh. Slow on BLE; much faster when both peers support Wi-Fi Aware.
+- **Live voice.** Push-to-talk bursts (AAC-LC 16 kHz mono). Half-duplex and
+  best-effort by design; the voice note sent on release is the reliable path.
+  This is walkie-talkie, not a voice call.
+- **Location channels.** Geohash-based rooms over Nostr.
+- **Tor.** Embedded Arti client for private internet access.
+- **Emergency wipe.** Triple-tap clears all local data.
+- **Channel chats.** Topic-based group messaging with optional password
+  protection (Argon2id + AES-256-GCM).
 
 ## Building
 
-Requires Android Studio and the Android SDK (API 26+).
+Requires JDK 21 and the Android SDK (compileSdk 37, build-tools 37.0.0).
 
-```bash
-git clone https://github.com/permissionlesstech/bitchat-android.git
-cd bitchat-android
-./gradlew assembleDebug
+```sh
+git clone <this-repo>
+cd signalless-android
+
+# Single APK for all ABIs
+ANDROID_HOME=$PATH_TO_ANDROID_SDK ./gradlew :app:packageDebug
 ```
 
-Install on a connected device:
+On a memory-constrained machine:
 
-```bash
+```sh
+ANDROID_HOME=$PATH_TO_ANDROID_SDK ./gradlew :app:packageDebug \
+  --no-parallel --max-workers=2 \
+  -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=512m" \
+  -Dkotlin.daemon.jvmargs="-Xmx768m"
+```
+
+The repository's `gradle.properties` defaults to a 4 GB Gradle heap with
+parallel execution, which is comfortable on a workstation and tight on a laptop.
+The flags above cap the Gradle daemon and the separate Kotlin compiler daemon.
+
+Output:
+
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+Use `:app:assembleDebug` instead if you want per-ABI split APKs; it produces one
+APK per architecture plus a universal build.
+
+### Tests
+
+```sh
+ANDROID_HOME=$PATH_TO_ANDROID_SDK ./gradlew :app:testDebugUnitTest
+```
+
+The first run downloads Robolectric's native runtime and can time out; rerun if
+it fails on a download rather than a test.
+
+### Install
+
+```sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The app requests Bluetooth, location (required for BLE scanning), and notification permissions at runtime.
+The app requests Bluetooth, location, and notification permissions at runtime.
+Location is required by Android for BLE scanning results and cannot be declined
+if you want the mesh to work.
 
-Release APKs and the Android App Bundle can be rebuilt byte-for-byte in the
-pinned Linux container. Maintainers should follow the
-[Android release guide](docs/maintainer-release-guide.md). See
-[Reproducible builds](docs/reproducible-builds.md) for the build trust model
-and public GitHub/Google Play verification procedures.
+## Architecture
 
-## Testing
-
-```bash
-# Unit tests
-./gradlew test
-
-# Lint
-./gradlew lint
-
-# Instrumented tests (requires a device or emulator)
-./gradlew connectedAndroidTest
+```
+app/src/main/java/com/signalless/
+├─ mesh/         transport core: BLE service, Wi-Fi Aware, relay/TTL/dedup
+├─ noise/        Noise XX sessions (southernstorm, MIT)
+├─ crypto/       identity keys and signing
+├─ protocol/     binary wire format, compression, padding
+├─ service/      foreground service, app lifecycle
+├─ services/     message routing, conversation state
+├─ nostr/        relay transport, NIP-13/17/44
+├─ geohash/      location channels
+├─ features/     file and voice transfer
+└─ ui/           Compose screens and theme
 ```
 
-Note that BLE mesh behavior is difficult to emulate; protocol and session logic is covered by unit tests, while radio-level behavior needs real devices.
+`UnifiedMeshService` selects a transport per peer; `MessageRouter` prefers the
+mesh and falls back to Nostr; `MeshForegroundService` keeps the mesh alive within
+Android's background execution limits.
+
+**BLE has no IP layer.** The protocol is a compact binary packet with TTL,
+signing, and fragmentation. Wi-Fi Aware carries the same packets as raw bytes.
+That is why WebRTC and other IP-dependent stacks do not fit this transport.
+
+## Differences from upstream BitChat
+
+- Application and display name, icons, and theming
+- Application ID and namespace: `com.signalless.app`
+- The Wear OS companion module has been removed
+- Play Store metadata (`fastlane/`) has been removed
+- Protocol internals are unchanged, so wire compatibility with BitChat clients
+  is retained
+
+## License
+
+GNU General Public License v3.0. See [LICENSE](LICENSE.md) and [NOTICE](NOTICE).
+
+Note: the upstream README described the project as public domain. That statement
+predates BitChat's MIT to GPL-3.0 relicense and is stale; `LICENSE.md` is
+authoritative.
+
+Because this is GPL-3.0, distributing a build requires publishing the complete
+corresponding source, preserving copyright notices, and stating that the work
+was modified. Private use carries no such obligation. This is not legal advice.

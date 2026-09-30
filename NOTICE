@@ -1,0 +1,57 @@
+SignalLess
+=========
+
+SignalLess is built on top of BitChat for Android, an offline-first,
+decentralized peer-to-peer messaging application developed by
+permissionlesstech and contributors:
+https://github.com/permissionlesstech/bitchat-android
+
+The mesh transport, Noise XX encryption, binary wire protocol, packet
+relay/gossip layer, and (for private media and live voice) the fragment,
+store-and-forward, and interop designs derive from that project and from
+its counterpart for iOS/macOS:
+https://github.com/permissionlesstech/bitchat
+
+Upstream authors retain copyright in their original contributions.
+
+Modifications for SignalLess include:
+  - Application and display naming (SignalLess)
+  - Application ID and namespace (com.signalless.app)
+  - Removal of the Wear OS companion module
+  - Removal of the Play Store metadata (fastlane) directory
+  - Launcher icon and monochrome/adaptive icon artwork
+
+Licensing
+---------
+
+BitChat for Android is licensed under the GNU General Public License,
+version 3 (GPL-3.0). That license was adopted upstream in commit
+fb2bb64d ("chore: change license from MIT to GPLv3 (#674)").
+
+This repository, and any derivative work distributed from it, remains
+under GPL-3.0. SignalLess is not relicensed.
+
+  * The complete corresponding source code must be made available to
+    recipients of any distributed binary.
+  * Copyright and license notices must be preserved.
+  * Modified versions must carry prominent notices stating that they
+    were changed, per GPL-3 section 5(b).
+  * No additional restrictions may be imposed on the covered code.
+
+Note: the "public domain" statement in the upstream README.md predates
+the MIT -> GPL-3.0 relicense and is stale. LICENSE.md is authoritative.
+
+Third-party components
+----------------------
+
+  com.bitchat.android.noise.southernstorm  MIT
+    Noise protocol framework, Copyright (C) 2016 Southern Storm
+    Software, Pty Ltd. Vendored under app/src/main/java.
+
+  Arti (Tor) native libraries (libarti_android.so)  Tor Project licenses
+    Built from the Arti source via tools/arti-build; see
+    tools/arti-build/README.md and TOOLCHAIN.env.
+
+  All Gradle and Maven dependencies retain their own upstream licenses.
+
+Not legal advice. Obtain qualified counsel before distributing.

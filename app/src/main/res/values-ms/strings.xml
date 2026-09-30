@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Machine-translated (Claude) — pending native-speaker review -->
-    <string name="app_name">bitchat</string>
+    <string name="app_name">SignalLess</string>
     <string name="permission_bluetooth_rationale">Kebenaran Bluetooth diperlukan untuk pemesejan rakan-ke-rakan tanpa internet.</string>
     <string name="permission_location_rationale">Kebenaran lokasi diperlukan untuk mengesan peranti berdekatan melalui Bluetooth.</string>
     <string name="permission_notification_rationale">Kebenaran pemberitahuan diperlukan untuk memaklumkan anda tentang mesej baharu.</string>
@@ -26,12 +26,12 @@
     <string name="battery_optimization_not_required">Pengoptimuman Bateri Tidak Diperlukan</string>
     <string name="battery_optimization_checking">Menyemak Pengoptimuman Bateri</string>
     <string name="battery_optimization_why_disable">Kenapa lumpuhkan pengoptimuman bateri?</string>
-    <string name="battery_optimization_explanation">bitchat berjalan di latar belakang untuk mengekalkan sambungan rangkaian mesh dengan peranti berdekatan. Pengoptimuman bateri boleh mengganggu sambungan ini, menyebabkan mesej lewat atau terlepas.\n\nMelumpuhkan pengoptimuman bateri memastikan pemesejan rakan-ke-rakan yang boleh dipercayai.</string>
+    <string name="battery_optimization_explanation">SignalLess berjalan di latar belakang untuk mengekalkan sambungan rangkaian mesh dengan peranti berdekatan. Pengoptimuman bateri boleh mengganggu sambungan ini, menyebabkan mesej lewat atau terlepas.\n\nMelumpuhkan pengoptimuman bateri memastikan pemesejan rakan-ke-rakan yang boleh dipercayai.</string>
     <string name="battery_optimization_disable_button">Lumpuhkan Pengoptimuman Bateri</string>
-    <string name="battery_optimization_note">Nota: Anda boleh menukar tetapan ini kemudian dalam Tetapan Android > Apl > bitchat > Bateri</string>
-    <string name="battery_optimization_not_supported_explanation">Peranti anda tidak memerlukan tetapan pengoptimuman bateri. bitchat akan berjalan seperti biasa.</string>
-    <string name="battery_optimization_not_supported_message">Peranti anda tidak memerlukan tetapan pengoptimuman bateri. bitchat akan berjalan seperti biasa.</string>
-    <string name="battery_optimization_success_message">bitchat boleh berjalan dengan boleh dipercayai di latar belakang</string>
+    <string name="battery_optimization_note">Nota: Anda boleh menukar tetapan ini kemudian dalam Tetapan Android > Apl > SignalLess > Bateri</string>
+    <string name="battery_optimization_not_supported_explanation">Peranti anda tidak memerlukan tetapan pengoptimuman bateri. SignalLess akan berjalan seperti biasa.</string>
+    <string name="battery_optimization_not_supported_message">Peranti anda tidak memerlukan tetapan pengoptimuman bateri. SignalLess akan berjalan seperti biasa.</string>
+    <string name="battery_optimization_success_message">SignalLess boleh berjalan dengan boleh dipercayai di latar belakang</string>
     <string name="battery_optimization_benefits">• Memastikan penghantaran mesej yang boleh dipercayai\n• Mengekalkan ketersambungan rangkaian mesh\n• Membenarkan geganti mesej latar belakang\n• Mengelakkan sambungan terputus</string>
     <string name="battery_optimization_check_again">Semak Semula</string>
     <string name="battery_optimization_skip">Langkau Buat Masa Ini</string>
@@ -43,7 +43,7 @@
   <string name="notification_summary_more">dan %1$d lagi</string>
   <string name="notification_messages_from_people">%1$d mesej daripada %2$d orang</string>
   <string name="notification_more_conversations">dan %1$d perbualan lagi</string>
-  <string name="notification_active_peers_title">👥 bitchatter berdekatan!</string>
+  <string name="notification_active_peers_title">👥 SignalLess user berdekatan!</string>
   <string name="notification_active_peers_one">1 orang berdekatan</string>
   <string name="notification_active_peers_many">%1$d orang berdekatan</string>
   <string name="notification_new_messages">Mesej Baharu</string>
@@ -54,8 +54,8 @@
   <string name="notification_new_activity_in">Aktiviti baharu dalam %1$s</string>
   <string name="notification_messages_in">Mesej dalam %1$s</string>
   <string name="notification_joined_conversation">%1$s telah menyertai perbualan</string>
-  <string name="notification_geohash_summary_title_mentions">bitchat - %1$d sebutan</string>
-  <string name="notification_geohash_summary_title">bitchat - sembang lokasi</string>
+  <string name="notification_geohash_summary_title_mentions">SignalLess - %1$d sebutan</string>
+  <string name="notification_geohash_summary_title">SignalLess - sembang lokasi</string>
   <string name="notification_geohash_summary_text">%1$d mesej daripada %2$d lokasi</string>
   <string name="notification_mesh_mention_title_singular">Disebut dalam Sembang Mesh</string>
   <string name="notification_mesh_mention_title_plural">%1$d sebutan dalam Sembang Mesh</string>
@@ -150,7 +150,7 @@
   <string name="cd_open_map">Buka peta</string>
   <string name="cd_remove_bookmark">Alih keluar penanda buku</string>
   <string name="cd_teleport">Teleport</string>
-  <string name="notification_action_quit_bitchat">Keluar bitchat</string>
+  <string name="notification_action_quit_signalless">Keluar SignalLess</string>
   <string name="about_background_title">jalankan di latar belakang</string>
   <string name="about_background_desc">kekalkan mesh aktif apabila apl ditutup (perkhidmatan latar depan)</string>
   <string name="cd_leave_channel">Keluar saluran</string>
@@ -307,14 +307,14 @@
   <!-- Onboarding screens -->
   <string name="location_services_required">Perkhidmatan Lokasi Diperlukan</string>
   <string name="privacy_first">Privasi Diutamakan</string>
-  <string name="location_explanation">bitchat TIDAK menjejaki lokasi anda.\n\nPerkhidmatan lokasi diperlukan untuk imbasan Bluetooth dan untuk ciri sembang Geohash.</string>
-  <string name="location_needs_for">bitchat memerlukan perkhidmatan lokasi untuk:</string>
+  <string name="location_explanation">SignalLess TIDAK menjejaki lokasi anda.\n\nPerkhidmatan lokasi diperlukan untuk imbasan Bluetooth dan untuk ciri sembang Geohash.</string>
+  <string name="location_needs_for">SignalLess memerlukan perkhidmatan lokasi untuk:</string>
   <string name="location_needs_bullets">• Imbasan peranti Bluetooth\n• Mengesan pengguna berdekatan pada rangkaian mesh\n• Ciri sembang Geohash\n• Tiada penjejakan atau pengumpulan lokasi</string>
   <string name="background_location_required_title">Lokasi Latar Belakang Disyorkan</string>
   <string name="background_location_required_subtitle">pilihan, meningkatkan kebolehpercayaan mesh</string>
-  <string name="background_location_explanation">Android mengesyorkan lokasi latar belakang supaya bitchat boleh mengimbas peranti berdekatan semasa apl tidak dibuka. Ini mengekalkan mesh aktif selepas but semula.</string>
+  <string name="background_location_explanation">Android mengesyorkan lokasi latar belakang supaya SignalLess boleh mengimbas peranti berdekatan semasa apl tidak dibuka. Ini mengekalkan mesh aktif selepas but semula.</string>
   <string name="background_location_settings_tip">Apabila tetapan dibuka, pilih "Benarkan sepanjang masa".</string>
-  <string name="background_location_needs_for">bitchat menggunakan lokasi latar belakang untuk:</string>
+  <string name="background_location_needs_for">SignalLess menggunakan lokasi latar belakang untuk:</string>
   <string name="background_location_needs_bullets">- mengimbas peranti berdekatan semasa apl ditutup\n- menyambung semula selepas but semula\n- mengekalkan mesh berjalan di latar belakang</string>
   <string name="background_location_privacy_note">Kami TIDAK PERNAH mengumpul atau menyimpan lokasi anda. Privasi anda selamat.</string>
   <string name="grant_background_location">Benarkan Lokasi Latar Belakang</string>
@@ -322,18 +322,18 @@
   <string name="open_location_settings">Buka Tetapan Lokasi</string>
   <string name="check_again">Semak Semula</string>
   <string name="location_services_unavailable">Perkhidmatan Lokasi Tidak Tersedia</string>
-  <string name="location_unavailable_explanation">Perkhidmatan lokasi tidak tersedia pada peranti ini. Ini luar biasa kerana perkhidmatan lokasi adalah standard pada peranti Android.\n\nbitchat memerlukan perkhidmatan lokasi untuk imbasan Bluetooth berfungsi dengan betul (keperluan Android). Tanpa ini, apl tidak dapat mengesan pengguna berdekatan.</string>
+  <string name="location_unavailable_explanation">Perkhidmatan lokasi tidak tersedia pada peranti ini. Ini luar biasa kerana perkhidmatan lokasi adalah standard pada peranti Android.\n\nSignalLess memerlukan perkhidmatan lokasi untuk imbasan Bluetooth berfungsi dengan betul (keperluan Android). Tanpa ini, apl tidak dapat mengesan pengguna berdekatan.</string>
   <string name="checking_location_services">Menyemak perkhidmatan lokasi...</string>
   <string name="bluetooth_required">Bluetooth Diperlukan</string>
-  <string name="bluetooth_needs_for">bitchat memerlukan Bluetooth untuk:</string>
+  <string name="bluetooth_needs_for">SignalLess memerlukan Bluetooth untuk:</string>
   <string name="bluetooth_needs_bullets">• Mengesan pengguna berdekatan\n• Mewujudkan sambungan rangkaian mesh\n• Menghantar dan menerima mesej\n• Berfungsi tanpa internet atau pelayan</string>
   <string name="enable_bluetooth">Aktifkan Bluetooth</string>
   <string name="bluetooth_not_supported">Bluetooth Tidak Disokong</string>
-  <string name="bluetooth_unsupported_explanation">Peranti ini tidak menyokong Bluetooth Low Energy (BLE), yang diperlukan untuk bitchat berfungsi.\n\nbitchat memerlukan BLE untuk mewujudkan rangkaian mesh dan berkomunikasi dengan peranti berdekatan tanpa internet.</string>
+  <string name="bluetooth_unsupported_explanation">Peranti ini tidak menyokong Bluetooth Low Energy (BLE), yang diperlukan untuk SignalLess berfungsi.\n\nSignalLess memerlukan BLE untuk mewujudkan rangkaian mesh dan berkomunikasi dengan peranti berdekatan tanpa internet.</string>
   <string name="checking_bluetooth_status">Menyemak status Bluetooth...</string>
   <string name="battery_optimization_detected_title">pengoptimuman bateri dikesan</string>
   <string name="battery_optimization_enabled_title">Pengoptimuman Bateri Diaktifkan</string>
-  <string name="battery_optimization_explanation_short">bitchat perlu berjalan di latar belakang untuk mengekalkan sambungan mesh. pengoptimuman bateri boleh mengganggu sambungan ini.</string>
+  <string name="battery_optimization_explanation_short">SignalLess perlu berjalan di latar belakang untuk mengekalkan sambungan mesh. pengoptimuman bateri boleh mengganggu sambungan ini.</string>
   <string name="benefits_of_disabling">Faedah Melumpuhkan</string>
   <string name="battery_benefits_short">• penghantaran mesej yang boleh dipercayai\n• mengekalkan ketersambungan mesh\n• mengelakkan sambungan terputus</string>
   <string name="disable_battery_optimization">Lumpuhkan Pengoptimuman Bateri</string>
@@ -351,7 +351,7 @@
   <string name="privacy_bullets">• tiada penjejakan atau pengumpulan data\n• sembang mesh Bluetooth sepenuhnya luar talian\n• sembang Geohash menggunakan internet</string>
   <string name="permissions_header">kebenaran</string>
   <string name="grant_permissions">Berikan Kebenaran</string>
-  <string name="location_tracking_warning">bitchat TIDAK menjejaki lokasi anda</string>
+  <string name="location_tracking_warning">SignalLess TIDAK menjejaki lokasi anda</string>
   <string name="at_symbol">@</string>
   <string name="channel_count_prefix"> · ⧉ </string>
   <string name="nobody_around">tiada sesiapa berdekatan...</string>
@@ -391,16 +391,16 @@
   <string name="cd_pause_voice">Jeda</string>
 
   <!-- Permission descriptions -->
-  <string name="perm_nearby_devices_desc">Diperlukan untuk mengesan pengguna bitchat melalui Bluetooth</string>
-  <string name="perm_nearby_devices_system">Benarkan bitchat menyambung kepada peranti berdekatan</string>
-  <string name="perm_location_desc">Diperlukan oleh Android untuk mengesan pengguna bitchat berdekatan melalui Bluetooth</string>
-  <string name="perm_location_system">bitchat memerlukan ini untuk mengimbas peranti berdekatan</string>
+  <string name="perm_nearby_devices_desc">Diperlukan untuk mengesan pengguna SignalLess melalui Bluetooth</string>
+  <string name="perm_nearby_devices_system">Benarkan SignalLess menyambung kepada peranti berdekatan</string>
+  <string name="perm_location_desc">Diperlukan oleh Android untuk mengesan pengguna SignalLess berdekatan melalui Bluetooth</string>
+  <string name="perm_location_system">SignalLess memerlukan ini untuk mengimbas peranti berdekatan</string>
   <string name="perm_background_location_desc">Disyorkan untuk mengimbas peranti berdekatan semasa apl di latar belakang</string>
   <string name="perm_background_location_system">Benarkan akses lokasi latar belakang</string>
   <string name="perm_notifications_desc">Terima pemberitahuan apabila anda menerima mesej peribadi</string>
-  <string name="perm_notifications_system">Benarkan bitchat menghantar pemberitahuan kepada anda</string>
-  <string name="perm_battery_desc">Lumpuhkan pengoptimuman bateri untuk memastikan bitchat berjalan dengan boleh dipercayai di latar belakang dan mengekalkan sambungan rangkaian mesh</string>
-  <string name="perm_battery_system">Benarkan bitchat berjalan tanpa sekatan bateri</string>
+  <string name="perm_notifications_system">Benarkan SignalLess menghantar pemberitahuan kepada anda</string>
+  <string name="perm_battery_desc">Lumpuhkan pengoptimuman bateri untuk memastikan SignalLess berjalan dengan boleh dipercayai di latar belakang dan mengekalkan sambungan rangkaian mesh</string>
+  <string name="perm_battery_system">Benarkan SignalLess berjalan tanpa sekatan bateri</string>
 
   <!-- Permission types -->
   <string name="perm_type_nearby_devices">Peranti Berdekatan</string>
