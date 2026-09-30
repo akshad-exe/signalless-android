@@ -436,15 +436,23 @@ class ChatViewModel(
         com.signalless.app.services.AppStateStore.reloadConversationPersistence(
             getApplication()
         )
-        // Mark queued private messages as failed when the router gives up on them
-        try {
-            com.signalless.app.services.MessageRouter.getInstance(getApplication(), mesh).onMessageExpired = { messageID ->
-                messageManager.updateMessageDeliveryStatus(
-                    messageID,
-                    com.signalless.app.model.DeliveryStatus.Failed("Message expired before delivery")
-                )
-            }
-        } catch (_: Exception) { }
+          // Mark queued private messages as failed when the router gives up on them, so the
+          // sender never keeps showing a spinner that nothing will resolve.
+          try {
+              val router = com.signalless.app.services.MessageRouter.getInstance(getApplication(), mesh)
+              val failWith = { messageID: String, reason: String ->
+                  messageManager.updateMessageDeliveryStatus(
+                      messageID,
+                      com.signalless.app.model.DeliveryStatus.Failed(reason)
+                  )
+              }
+              router.onMessageExpired = { messageID ->
+                  failWith(messageID, "Message expired before delivery")
+              }
+              router.onMessageFailed = { messageID, reason ->
+                  failWith(messageID, "Could not be delivered: $reason")
+              }
+          } catch (_: Exception) { }
         // Hydrate UI state from process-wide AppStateStore to survive Activity recreation
         viewModelScope.launch {
             try { com.signalless.app.services.AppStateStore.peers.collect { peers ->

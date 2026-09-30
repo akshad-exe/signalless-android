@@ -186,6 +186,68 @@ class ConversationRepository internal constructor(
         }
     }
 
+    // MARK: - Durable outbox (synchronous on purpose)
+
+    // The router's retry loop must observe a write immediately after issuing it, so these
+    // deliberately bypass the repository's background scope. The outbox rows are small
+    // bookkeeping updates, not conversation payloads, so the extra I/O on the caller is bounded.
+
+    /** A queued-but-unsent message recovered from disk. */
+    data class OutboxEntry(
+        val messageId: String,
+        val conversationId: String,
+        val attempts: Int,
+        val handshakeAttempts: Int,
+        val enqueuedAt: Long,
+        val expiresAt: Long
+    )
+
+    fun enqueueOutbox(
+        messageId: String,
+        conversationId: String,
+        attempts: Int,
+        handshakeAttempts: Int,
+        nextAttemptAt: Long,
+        enqueuedAt: Long,
+        expiresAt: Long
+    ) {
+        database.enqueueOutbox(
+            messageId = messageId,
+            conversationId = conversationId,
+            attempts = attempts,
+            handshakeAttempts = handshakeAttempts,
+            nextAttemptAt = nextAttemptAt,
+            enqueuedAt = enqueuedAt,
+            expiresAt = expiresAt
+        )
+    }
+
+    fun updateOutboxAttempt(
+        messageId: String,
+        attempts: Int,
+        handshakeAttempts: Int,
+        nextAttemptAt: Long
+    ) {
+        database.updateOutboxAttempt(messageId, attempts, handshakeAttempts, nextAttemptAt)
+    }
+
+    fun deleteOutbox(messageId: String) {
+        database.deleteOutbox(messageId)
+    }
+
+    fun countOutbox(): Int = database.countOutbox()
+
+    fun loadOutbox(nowMs: Long): Pair<List<OutboxEntry>, List<OutboxEntry>> =
+        database.loadOutbox(nowMs)
+
+    fun findStuckSendingMessages(olderThanMs: Long, nowMs: Long): List<String> =
+        database.findStuckSendingMessages(olderThanMs, nowMs)
+
+    fun loadMessageContent(messageId: String): String? = database.loadMessageContent(messageId)
+
+    fun findConversationIdForMessage(messageId: String): String? =
+        database.findConversationIdForMessage(messageId)
+
     fun markRead(messageID: String) {
         scope.launch {
             try {
@@ -391,9 +453,15 @@ internal class ConversationDatabase(
         const val MAX_MEDIA_BYTES = 256L * 1024L * 1024L
 
         internal const val DEFAULT_DATABASE_NAME = "private_conversations.db"
-        internal const val DATABASE_VERSION = 4
+        internal const val DATABASE_VERSION = 5
         private const val PRUNE_INTERVAL = 64
         private const val PRUNE_BATCH_SIZE = 256
+
+        /** outbox.state: awaiting a reachable peer. */
+        const val OUTBOX_STATE_QUEUED = 0
+
+        /** private_messages.delivery_type for an outgoing message that has not been handed off yet. */
+        const val DELIVERY_TYPE_SENDING = 1
     }
 
     private val applicationContext = context.applicationContext
@@ -491,9 +559,12 @@ internal class ConversationDatabase(
                 "ON private_messages(is_read, arrival_sequence)"
         )
         createAttachmentsTable(db)
+        createOutboxTable(db)
         db.execSQL(
-            "CREATE INDEX idx_conversation_aliases_conversation " +
-                "ON conversation_aliases(conversation_id)"
+            "CREATE INDEX idx_outbox_due ON outbox(state, next_attempt_at)"
+        )
+        db.execSQL(
+            "CREATE INDEX idx_outbox_conversation ON outbox(conversation_id, enqueued_at)"
         )
         db.execSQL(
             """
@@ -541,6 +612,12 @@ internal class ConversationDatabase(
                 }
             }
             version = 4
+        }
+        if (version == 4) {
+            createOutboxTable(db)
+            db.execSQL("CREATE INDEX idx_outbox_due ON outbox(state, next_attempt_at)")
+            db.execSQL("CREATE INDEX idx_outbox_conversation ON outbox(conversation_id, enqueued_at)")
+            version = 5
         }
         check(version == newVersion) {
             "Missing conversation database migration from $version to $newVersion"
@@ -621,6 +698,32 @@ internal class ConversationDatabase(
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS idx_message_attachments_path_hash " +
                 "ON message_attachments(path_hash)"
+        )
+    }
+
+    /**
+     * Durable outbox for messages that are queued awaiting a reachable peer.
+     *
+     * The row deliberately stores no message body: the encrypted payload already lives in
+     * private_messages.payload_ciphertext, so this table only tracks retry bookkeeping.
+     * That keeps the outbox from becoming a second, unencrypted copy of message content.
+     */
+    private fun createOutboxTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS outbox (
+                message_id TEXT PRIMARY KEY NOT NULL,
+                conversation_id TEXT COLLATE NOCASE NOT NULL,
+                state INTEGER NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                handshake_attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at INTEGER NOT NULL,
+                enqueued_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                FOREIGN KEY(message_id) REFERENCES private_messages(message_id)
+                    ON DELETE CASCADE ON UPDATE CASCADE
+            )
+            """.trimIndent()
         )
     }
 
@@ -904,6 +1007,148 @@ internal class ConversationDatabase(
                 "message_id = ?",
                 arrayOf(messageID)
             )
+        }
+    }
+
+    // MARK: - Durable outbox
+
+    /**
+     * Record a message as awaiting delivery. The body is not stored here: it already exists
+     * encrypted in private_messages.payload_ciphertext, so the outbox never becomes a second,
+     * unencrypted copy of message content.
+     */
+    fun enqueueOutbox(
+        messageId: String,
+        conversationId: String,
+        attempts: Int,
+        handshakeAttempts: Int,
+        nextAttemptAt: Long,
+        enqueuedAt: Long,
+        expiresAt: Long
+    ) {
+        writableDatabase.insertWithOnConflict(
+            "outbox",
+            null,
+            ContentValues().apply {
+                put("message_id", messageId)
+                put("conversation_id", conversationId)
+                put("state", OUTBOX_STATE_QUEUED)
+                put("attempts", attempts)
+                put("handshake_attempts", handshakeAttempts)
+                put("next_attempt_at", nextAttemptAt)
+                put("enqueued_at", enqueuedAt)
+                put("expires_at", expiresAt)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    fun updateOutboxAttempt(
+        messageId: String,
+        attempts: Int,
+        handshakeAttempts: Int,
+        nextAttemptAt: Long
+    ) {
+        writableDatabase.update(
+            "outbox",
+            ContentValues().apply {
+                put("attempts", attempts)
+                put("handshake_attempts", handshakeAttempts)
+                put("next_attempt_at", nextAttemptAt)
+            },
+            "message_id = ?",
+            arrayOf(messageId)
+        )
+    }
+
+    fun deleteOutbox(messageId: String) {
+        writableDatabase.delete("outbox", "message_id = ?", arrayOf(messageId))
+    }
+
+    fun deleteOutboxForConversation(conversationId: String) {
+        writableDatabase.delete("outbox", "conversation_id = ? COLLATE NOCASE", arrayOf(conversationId))
+    }
+
+    fun countOutbox(): Int {
+        return writableDatabase.rawQuery("SELECT COUNT(*) FROM outbox", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    /**
+     * Decrypted body of a stored message, or null when it no longer exists.
+     *
+     * Used to rebuild a queued message from its outbox row after process death. The value is
+     * only ever held in memory for the duration of a send attempt.
+     */
+    fun loadMessageContent(messageId: String): String? {
+        return writableDatabase.rawQuery(
+            "SELECT ${MESSAGE_COLUMNS.joinToString(",")} FROM private_messages WHERE message_id = ?",
+            arrayOf(messageId)
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            cursor.toMessage().content
+        }
+    }
+
+    /**
+     * Live rows, plus rows whose retention window has closed. Expired rows are returned rather
+     * than deleted so the caller can mark their messages failed instead of dropping them silently.
+     */
+    fun loadOutbox(nowMs: Long): Pair<List<ConversationRepository.OutboxEntry>, List<ConversationRepository.OutboxEntry>> {
+        val live = mutableListOf<ConversationRepository.OutboxEntry>()
+        val expired = mutableListOf<ConversationRepository.OutboxEntry>()
+        writableDatabase.rawQuery(
+            """
+            SELECT message_id, conversation_id, attempts, handshake_attempts, enqueued_at, expires_at
+            FROM outbox WHERE state = ? ORDER BY enqueued_at ASC
+            """.trimIndent(),
+            arrayOf(OUTBOX_STATE_QUEUED.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val entry = ConversationRepository.OutboxEntry(
+                    messageId = cursor.getString(0),
+                    conversationId = cursor.getString(1),
+                    attempts = cursor.getInt(2),
+                    handshakeAttempts = cursor.getInt(3),
+                    enqueuedAt = cursor.getLong(4),
+                    expiresAt = cursor.getLong(5)
+                )
+                if (entry.expiresAt <= nowMs) expired += entry else live += entry
+            }
+        }
+        return live to expired
+    }
+
+    /**
+     * Outgoing messages still marked in-flight that predate [olderThanMs].
+     *
+     * delivery_type 1 is written only for outgoing sends (see [deliveryValues]), so it identifies
+     * abandoned sends on its own; no sender filter is needed. These are the silent-limbo rows a
+     * dead router leaves behind.
+     */
+    fun findStuckSendingMessages(olderThanMs: Long, nowMs: Long): List<String> {
+        val ids = mutableListOf<String>()
+        writableDatabase.rawQuery(
+            """
+            SELECT message_id FROM private_messages
+            WHERE delivery_type = ? AND sent_at < ?
+            ORDER BY sent_at ASC
+            """.trimIndent(),
+            arrayOf(DELIVERY_TYPE_SENDING.toString(), (nowMs - olderThanMs).toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) ids += cursor.getString(0)
+        }
+        return ids
+    }
+
+    /** Conversation a stored message belongs to, for rebuilding a queued send after a restart. */
+    fun findConversationIdForMessage(messageId: String): String? {
+        return writableDatabase.rawQuery(
+            "SELECT conversation_id FROM private_messages WHERE message_id = ?",
+            arrayOf(messageId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
     }
 
