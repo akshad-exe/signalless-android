@@ -126,6 +126,9 @@ kotlin {
 }
 
 dependencies {
+    // Portable protocol, noise, model, and mesh core (plain Kotlin JVM).
+    implementation(project(":protocol-core"))
+
     // Core Android dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

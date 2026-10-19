@@ -139,9 +139,10 @@ class SecurityManager(private val encryptionService: EncryptionService, private 
             processedKeyExchanges.add(exchangeKey)
             keyExchangeTimestamps[exchangeKey] = System.currentTimeMillis()
             
-            if (result.response != null) {
+            val handshakeResponse = result.response
+            if (handshakeResponse != null) {
                 // Send handshake response through delegate
-                delegate?.sendHandshakeResponse(peerID, result.response)
+                delegate?.sendHandshakeResponse(peerID, handshakeResponse)
             }
             if (result.establishedNow) {
                 val authenticatedRemoteStaticKey = result.authenticatedRemoteStaticKey

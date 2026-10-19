@@ -111,7 +111,24 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
     private val storeForwardManager = StoreForwardManager()
     private val messageHandler = MessageHandler(myPeerID, context.applicationContext)
     internal val connectionManager = BluetoothConnectionManager(context, myPeerID, fragmentManager) // Made internal for access
-    private val packetProcessor = PacketProcessor(myPeerID)
+    private val packetProcessor = PacketProcessor(
+        myPeerID,
+        relayEnabled = {
+            try {
+                com.signalless.app.ui.debug.DebugSettingsManager.getInstance().packetRelayEnabled.value
+            } catch (_: Exception) {
+                true
+            }
+        },
+        onIncomingPacket = { peerID, nick, messageType, viaDeviceId ->
+            try {
+                com.signalless.app.ui.debug.DebugSettingsManager.getInstance()
+                    .logIncomingPacket(peerID, nick, messageType, viaDeviceId)
+            } catch (_: Exception) {
+                // Debug logging must never break packet processing.
+            }
+        }
+    )
     private data class VoiceFrameRequest(val recipientPeerID: String?, val payload: ByteArray)
     private val voiceFrameQueue = Channel<VoiceFrameRequest>(capacity = 128)
     private lateinit var gossipSyncManager: GossipSyncManager

@@ -38,13 +38,6 @@ internal class SecureAuthenticatedPeerStateStore(context: Context) : Authenticat
         identityState.isPrivateMediaCapable(fingerprint)
 }
 
-internal sealed interface AuthenticatedPeerStateStatus {
-    data object Missing : AuthenticatedPeerStateStatus
-    data object Awaiting : AuthenticatedPeerStateStatus
-    data object TimedOut : AuthenticatedPeerStateStatus
-    data class Proven(val state: AuthenticatedPeerState) : AuthenticatedPeerStateStatus
-}
-
 /** Fresh, generation-scoped authenticated peer-state exchange for Noise payload 0x21. */
 internal class AuthenticatedPeerStateCoordinator(
     private val scope: CoroutineScope,

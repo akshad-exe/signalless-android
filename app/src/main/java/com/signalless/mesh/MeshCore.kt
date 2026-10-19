@@ -111,7 +111,24 @@ class MeshCore(
     private val securityManager = SecurityManager(encryptionService, myPeerID)
     private val storeForwardManager = StoreForwardManager()
     private val messageHandler = MessageHandler(myPeerID, context.applicationContext)
-    private val packetProcessor = PacketProcessor(myPeerID)
+    private val packetProcessor = PacketProcessor(
+        myPeerID,
+        relayEnabled = {
+            try {
+                com.signalless.app.ui.debug.DebugSettingsManager.getInstance().packetRelayEnabled.value
+            } catch (_: Exception) {
+                true
+            }
+        },
+        onIncomingPacket = { peerID, nick, messageType, viaDeviceId ->
+            try {
+                com.signalless.app.ui.debug.DebugSettingsManager.getInstance()
+                    .logIncomingPacket(peerID, nick, messageType, viaDeviceId)
+            } catch (_: Exception) {
+                // Debug logging must never break packet processing.
+            }
+        }
+    )
     private data class VoiceFrameRequest(val recipientPeerID: String?, val payload: ByteArray)
     private val voiceFrameQueue = Channel<VoiceFrameRequest>(capacity = 128)
     private val directPeers = ConcurrentHashMap.newKeySet<String>()
