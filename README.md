@@ -98,19 +98,40 @@ if you want the mesh to work.
 
 ## Architecture
 
+Two Gradle modules share one build:
+
 ```
-app/src/main/java/com/signalless/
-├─ mesh/         transport core: BLE service, Wi-Fi Aware, relay/TTL/dedup
-├─ noise/        Noise XX sessions (southernstorm, MIT)
-├─ crypto/       identity keys and signing
-├─ protocol/     binary wire format, compression, padding
-├─ service/      foreground service, app lifecycle
-├─ services/     message routing, conversation state
-├─ nostr/        relay transport, NIP-13/17/44
-├─ geohash/      location channels
-├─ features/     file and voice transfer
-└─ ui/           Compose screens and theme
+protocol-core/                  portable JVM code, no Android imports
+├─ com.signalless.app.protocol  binary wire format, compression, padding
+├─ com.signalless.app.model     packets, fragments, capabilities, identity
+├─ com.signalless.app.noise     Noise XX sessions (vendored Southern Storm, MIT)
+├─ com.signalless.app.mesh      relay/TTL/dedup, peers, fragmentation
+├─ com.signalless.app.sync      GCS filters, packet IDs
+└─ com.signalless.app.util      logging and byte helpers
+
+app/                            Android app
+├─ com.signalless.android.mesh  BLE/GATT, foreground service, power glue
+├─ com.signalless.android.noise Android keystore wrapper
+├─ com.signalless.android.sync  Android gossip glue
+├─ com.signalless.android.model Android file-sharing glue
+├─ com.signalless.app.ui        Compose screens and theme
+├─ com.signalless.app.services  message routing, conversation state
+├─ com.signalless.app.nostr     relay transport, NIP-13/17/44
+├─ com.signalless.app.geohash   location channels
+├─ com.signalless.app.features  file and voice transfer
+├─ com.signalless.app.service   foreground service, app lifecycle
+└─ com.signalless.app.util      APK updater and distribution
 ```
+
+`com.signalless.android.*` is the Android platform layer; the rest of
+`com.signalless.app.*` is either app code or portable core. `protocol-core` must
+never import `android.*`; that is what lets the same protocol code run
+off-device. `util` is the one package name still present in both modules: core
+helpers live in `protocol-core`, the APK updater lives in `app`.
+
+The `southernstorm` subtree is vendored Java (MIT); everything else is Kotlin.
+It implements the Noise primitives and is kept byte-for-byte close to upstream
+rather than rewritten.
 
 `UnifiedMeshService` selects a transport per peer; `MessageRouter` prefers the
 mesh and falls back to Nostr; `MeshForegroundService` keeps the mesh alive within
