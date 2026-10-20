@@ -3,6 +3,8 @@ using SignalLess.Relay.Ble;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+IHelperOutput? output = null;
+
 try
 {
     var options = HelperOptions.Parse(args);
@@ -24,17 +26,26 @@ try
         return await AdvertisementProbe.RunAsync(options.ScanSeconds);
     }
 
-    return await GattServerHost.RunAsync(options);
+    output = options.Ipc ? new IpcOutput() : new TerminalOutput();
+    return await GattServerHost.RunAsync(options, output);
 }
 catch (HelperException ex)
 {
-    Log.Error($"{ex.Code}: {ex.Message}");
+    output?.Error(ex.Code, ex.Message);
+    if (output is null)
+    {
+        Log.Error($"{ex.Code}: {ex.Message}");
+    }
     return 1;
 }
 catch (Exception ex)
 {
     // Never print exception messages from WinRT callbacks: they can contain
     // device identifiers. The type name is enough for the terminal harness.
-    Log.Error($"UNEXPECTED: {ex.GetType().Name}");
+    output?.Error("HELPER_EXIT", ex.GetType().Name);
+    if (output is null)
+    {
+        Log.Error($"UNEXPECTED: {ex.GetType().Name}");
+    }
     return 1;
 }

@@ -27,6 +27,7 @@ application {
 dependencies {
     implementation(project(":protocol-core"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.gson)
 
     testImplementation(libs.junit)
 }

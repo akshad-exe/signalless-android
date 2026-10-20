@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Channels;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 
@@ -13,7 +14,7 @@ internal static class GattServerHost
     private static readonly Guid CharacteristicUuid =
         new("A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D");
 
-    public static async Task<int> RunAsync(HelperOptions options)
+    public static async Task<int> RunAsync(HelperOptions options, IHelperOutput output)
     {
         if (!AdapterProbe.IsServiceProviderSupported)
         {
@@ -37,17 +38,30 @@ internal static class GattServerHost
                 "ServiceData advertising is not supported by this Windows build");
         }
 
-        using var host = await Server.StartAsync(options);
-        Log.Info("ready; press Ctrl+C to stop");
+        using var host = await Server.StartAsync(options, output);
+        output.Ready(
+            options.MaxLinks,
+            AdapterProbe.IsServiceDataSupported,
+            options.ServiceData is not null,
+            Environment.OSVersion.Version.ToString());
+        Log.Info(options.Ipc
+            ? "ready for NDJSON commands"
+            : "ready; press Ctrl+C to stop");
+
+        if (options.Ipc)
+        {
+            IpcLoop.Start(host, output);
+        }
 
         return await host.WaitForShutdownAsync();
     }
 
-    private sealed class Server : IDisposable
+    internal sealed class Server : IDisposable
     {
         private readonly GattServiceProvider _provider;
         private readonly GattLocalCharacteristic _characteristic;
         private readonly HelperOptions _options;
+        private readonly IHelperOutput _output;
         private readonly object _gate = new();
         private readonly Dictionary<string, Link> _links = new(StringComparer.Ordinal);
         private readonly TaskCompletionSource<int> _exit =
@@ -59,11 +73,13 @@ internal static class GattServerHost
         private Server(
             GattServiceProvider provider,
             GattLocalCharacteristic characteristic,
-            HelperOptions options)
+            HelperOptions options,
+            IHelperOutput output)
         {
             _provider = provider;
             _characteristic = characteristic;
             _options = options;
+            _output = output;
 
             _provider.AdvertisementStatusChanged += OnAdvertisementStatusChanged;
             _characteristic.ReadRequested += OnReadRequested;
@@ -71,7 +87,9 @@ internal static class GattServerHost
             _characteristic.SubscribedClientsChanged += OnSubscribedClientsChanged;
         }
 
-        public static async Task<Server> StartAsync(HelperOptions options)
+        public static async Task<Server> StartAsync(
+            HelperOptions options,
+            IHelperOutput output)
         {
             GattServiceProviderResult providerResult;
             try
@@ -124,7 +142,11 @@ internal static class GattServerHost
                     characteristicResult.Error.ToString());
             }
 
-            var server = new Server(provider, characteristicResult.Characteristic, options);
+            var server = new Server(
+                provider,
+                characteristicResult.Characteristic,
+                options,
+                output);
             try
             {
                 server.StartAdvertising();
@@ -167,6 +189,8 @@ internal static class GattServerHost
                 $"connectable=true serviceData={hasServiceData.ToString().ToLowerInvariant()} " +
                 $"status={status}");
 
+            _output.Advertising(status.ToString().ToLowerInvariant(), hasServiceData, null);
+
             if (status == GattServiceProviderAdvertisementStatus.Aborted)
             {
                 throw new HelperException("ADVERTISING_FAILED", "adapter returned Aborted");
@@ -186,16 +210,26 @@ internal static class GattServerHost
         {
             Log.Info($"advertising state={args.Status} error={args.Error}");
 
-            if (args.Status == GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData)
+            if (args.Status == GattServiceProviderAdvertisementStatus.Started)
+            {
+                _output.Advertising("started", _options.ServiceData is not null, args.Error.ToString());
+            }
+            else if (args.Status == GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData)
             {
                 Log.Warn(
                     "ADVERTISING_DEGRADED: service data may have displaced the " +
                     "service UUID; turn the experimental flag off");
+                _output.Advertising("degraded", _options.ServiceData is not null, args.Error.ToString());
             }
             else if (args.Status == GattServiceProviderAdvertisementStatus.Aborted)
             {
                 Log.Error($"ADVERTISING_FAILED: {args.Error}");
+                _output.Advertising("aborted", _options.ServiceData is not null, args.Error.ToString());
                 _exit.TrySetResult(2);
+            }
+            else
+            {
+                _output.Advertising("stopped", _options.ServiceData is not null, args.Error.ToString());
             }
         }
 
@@ -241,7 +275,9 @@ internal static class GattServerHost
                     var link = new Link(
                         $"l{Interlocked.Increment(ref _nextLinkId)}",
                         pair.Key,
-                        pair.Value);
+                        pair.Value,
+                        _characteristic,
+                        _options.Echo && !_options.Ipc);
 
                     _links[pair.Key] = link;
                     link.Session.SessionStatusChanged += (_, eventArgs) =>
@@ -257,11 +293,13 @@ internal static class GattServerHost
 
             foreach (var link in removed)
             {
-                Log.Info($"link down link={link.Id} reason=remote");
+                link.Dispose();
+                _output.LinkDown(link.Id, "remote");
             }
 
             foreach (var link in added)
             {
+                _output.LinkUp(link.Id, link.Mtu, link.MaxNotificationSize);
                 Log.Info(
                     $"link up link={link.Id} mtu={link.Mtu} " +
                     $"maxNotification={link.MaxNotificationSize}");
@@ -300,20 +338,14 @@ internal static class GattServerHost
                     request.Respond();
                 }
 
-                if (!_options.Echo)
-                {
-                    return;
-                }
+                _output.Rx(link.Id, value);
 
-                try
+                if (_options.Echo && !_options.Ipc)
                 {
-                    // Phase 2 spike: echo inline after responding to the write.
-                    // Phase 3 moves this to the bounded per-link writer loop.
-                    await link.NotifyAsync(_characteristic, value);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warn($"tx link={link.Id} failed={ex.GetType().Name}");
+                    if (!link.TryEnqueue(value, 0, out _))
+                    {
+                        Log.Warn($"echo link={link.Id} dropped=queue_full");
+                    }
                 }
             }
             catch (Exception ex)
@@ -340,8 +372,7 @@ internal static class GattServerHost
                 }
 
                 var link = FindLink(args.Session);
-                Log.Info(
-                    $"read link={link?.Id ?? "-"} length={request.Length}");
+                Log.Info($"read link={link?.Id ?? "-"} length={request.Length}");
 
                 request.RespondWithValue(BufferUtil.ToBuffer(_readValue));
             }
@@ -355,6 +386,44 @@ internal static class GattServerHost
             }
         }
 
+        public async Task<(bool Ok, string? Error)> SendAsync(
+            string linkId,
+            long sequence,
+            byte[] data)
+        {
+            Link? link;
+            lock (_gate)
+            {
+                link = _links.Values.FirstOrDefault(candidate => candidate.Id == linkId);
+            }
+
+            if (link is null)
+            {
+                return (false, "unknown link");
+            }
+
+            if (data.Length > link.MaxNotificationSize)
+            {
+                return (false, "oversized notification");
+            }
+
+            return await link.SendAsync(data, sequence);
+        }
+
+        public void StopAdvertising()
+        {
+            try
+            {
+                _provider.StopAdvertising();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"stop advertising failed={ex.GetType().Name}");
+            }
+        }
+
+        public void RequestShutdown(int exitCode) => _exit.TrySetResult(exitCode);
+
         private Link? FindLink(GattSession session)
         {
             var key = GetSessionKey(session);
@@ -366,10 +435,11 @@ internal static class GattServerHost
 
         private void RemoveLink(string sessionKey, string reason)
         {
-            Link? link = null;
+            Link? link;
             lock (_gate)
             {
-                if (_links.TryGetValue(sessionKey, out link))
+                _links.TryGetValue(sessionKey, out link);
+                if (link is not null)
                 {
                     _links.Remove(sessionKey);
                 }
@@ -377,6 +447,8 @@ internal static class GattServerHost
 
             if (link is not null)
             {
+                link.Dispose();
+                _output.LinkDown(link.Id, reason);
                 Log.Info($"link down link={link.Id} reason={reason}");
             }
         }
@@ -410,32 +482,52 @@ internal static class GattServerHost
         public void Dispose()
         {
             _exit.TrySetResult(0);
+            StopAdvertising();
 
             _characteristic.ReadRequested -= OnReadRequested;
             _characteristic.WriteRequested -= OnWriteRequested;
             _characteristic.SubscribedClientsChanged -= OnSubscribedClientsChanged;
             _provider.AdvertisementStatusChanged -= OnAdvertisementStatusChanged;
 
-            try
+            List<Link> links;
+            lock (_gate)
             {
-                _provider.StopAdvertising();
+                links = _links.Values.ToList();
+                _links.Clear();
             }
-            catch (Exception ex)
-            {
-                Log.Warn($"stop advertising failed={ex.GetType().Name}");
-            }
+            links.ForEach(link => link.Dispose());
         }
     }
 
-    private sealed class Link
+    private sealed class Link : IDisposable
     {
         private readonly SemaphoreSlim _sendGate = new(1, 1);
+        private readonly GattLocalCharacteristic _characteristic;
+        private readonly Channel<SendItem> _queue;
+        private readonly CancellationTokenSource _lifetime = new();
+        private readonly Task _writer;
+        private readonly bool _echo;
 
-        public Link(string id, string sessionKey, GattSubscribedClient client)
+        public Link(
+            string id,
+            string sessionKey,
+            GattSubscribedClient client,
+            GattLocalCharacteristic characteristic,
+            bool echo)
         {
             Id = id;
             SessionKey = sessionKey;
             Client = client;
+            _characteristic = characteristic;
+            _echo = echo;
+            _queue = Channel.CreateBounded<SendItem>(
+                new BoundedChannelOptions(64)
+                {
+                    SingleReader = true,
+                    SingleWriter = false,
+                    FullMode = BoundedChannelFullMode.Wait,
+                });
+            _writer = Task.Run(WriterLoopAsync);
         }
 
         public string Id { get; }
@@ -445,22 +537,75 @@ internal static class GattServerHost
         public int Mtu => Session.MaxPduSize;
         public int MaxNotificationSize => Client.MaxNotificationSize;
 
-        public async Task NotifyAsync(
-            GattLocalCharacteristic characteristic,
-            byte[] value)
+        public bool TryEnqueue(
+            byte[] value,
+            long sequence,
+            out Task<(bool Ok, string? Error)>? completion)
+        {
+            var result = new TaskCompletionSource<(bool Ok, string? Error)>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_queue.Writer.TryWrite(new SendItem(value, sequence, result)))
+            {
+                completion = null;
+                return false;
+            }
+
+            completion = result.Task;
+            return true;
+        }
+
+        public async Task<(bool Ok, string? Error)> SendAsync(
+            byte[] value,
+            long sequence)
+        {
+            if (!TryEnqueue(value, sequence, out var completion) || completion is null)
+            {
+                return (false, "TX_QUEUE_FULL");
+            }
+
+            return await completion;
+        }
+
+        private async Task WriterLoopAsync()
+        {
+            try
+            {
+                await foreach (var item in _queue.Reader.ReadAllAsync(_lifetime.Token))
+                {
+                    var result = await NotifyAsync(item.Data);
+                    item.Completion.TrySetResult(result);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"tx queue link={Id} failed={ex.GetType().Name}");
+            }
+            finally
+            {
+                while (_queue.Reader.TryRead(out var pending))
+                {
+                    pending.Completion.TrySetResult((false, "link_down"));
+                }
+            }
+        }
+
+        private async Task<(bool Ok, string? Error)> NotifyAsync(byte[] value)
         {
             if (value.Length > MaxNotificationSize)
             {
                 Log.Warn(
                     $"tx link={Id} bytes={value.Length} " +
                     $"skipped=maxNotification={MaxNotificationSize}");
-                return;
+                return (false, "oversized notification");
             }
 
             await _sendGate.WaitAsync();
             try
             {
-                var result = await characteristic.NotifyValueAsync(
+                var result = await _characteristic.NotifyValueAsync(
                     BufferUtil.ToBuffer(value),
                     Client);
 
@@ -469,15 +614,34 @@ internal static class GattServerHost
                     Log.Warn(
                         $"tx link={Id} status={result.Status} " +
                         $"protocolError=0x{result.ProtocolError:X2}");
-                    return;
+                    return (false, result.Status.ToString());
                 }
 
-                Log.Info($"tx link={Id} bytes={result.BytesSent} echo=true");
+                Log.Info(
+                    $"tx link={Id} bytes={result.BytesSent} echo=" +
+                    _echo.ToString().ToLowerInvariant());
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"tx link={Id} failed={ex.GetType().Name}");
+                return (false, ex.GetType().Name);
             }
             finally
             {
                 _sendGate.Release();
             }
         }
+
+        public void Dispose()
+        {
+            _lifetime.Cancel();
+            _queue.Writer.TryComplete();
+        }
+
+        private sealed record SendItem(
+            byte[] Data,
+            long Sequence,
+            TaskCompletionSource<(bool Ok, string? Error)> Completion);
     }
 }

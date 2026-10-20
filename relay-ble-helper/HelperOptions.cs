@@ -7,6 +7,7 @@ internal sealed record HelperOptions
     public bool ShowHelp { get; init; }
     public bool ShowVersion { get; init; }
     public bool Scan { get; init; }
+    public bool Ipc { get; init; }
     public int ScanSeconds { get; init; } = 15;
     public bool Discoverable { get; init; } = true;
     public bool Echo { get; init; } = true;
@@ -29,6 +30,9 @@ internal sealed record HelperOptions
                     break;
                 case "--scan":
                     options = options with { Scan = true };
+                    break;
+                case "--ipc":
+                    options = options with { Ipc = true };
                     break;
                 case "--scan-seconds":
                     options = options with
@@ -117,15 +121,17 @@ internal sealed record HelperOptions
     }
 
     public const string HelpText = """
-        SignalLess relay BLE helper (Phase 2 terminal harness)
+        SignalLess relay BLE helper
 
         Usage:
           relay-ble-helper [options]
           relay-ble-helper --scan [--scan-seconds N]
+          relay-ble-helper --ipc [options]
 
         Modes:
           (default)             Advertise the GATT service and echo writes.
           --scan                Print matching advertised service sections.
+          --ipc                 Speak the NDJSON process protocol on stdout.
 
         Options:
           --service-data HEX    Experimental 1-8 byte service data. Default off.
@@ -136,15 +142,15 @@ internal sealed record HelperOptions
           --help, -h            Show this help.
           --version             Show the helper version.
 
-        The helper writes diagnostics to stderr. Standard output is reserved for
-        the NDJSON protocol that Phase 3 will add. No MAC addresses, device
-        names, payloads, or keys are logged.
+        In IPC mode, stdout is NDJSON only and diagnostics go to stderr. The
+        helper exits when stdin closes or after a shutdown command. No MAC
+        addresses, device names, payloads, or keys are logged.
         """;
 }
 
 internal static class HelperInfo
 {
-    public const string Version = "0.1.0";
+    public const string Version = "0.2.0";
 }
 
 internal sealed class HelperException : Exception
