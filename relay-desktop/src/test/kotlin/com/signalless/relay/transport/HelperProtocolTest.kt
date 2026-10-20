@@ -49,6 +49,16 @@ class HelperProtocolTest {
     }
 
     @Test
+    fun `tolerates a utf8 bom before the first object`() {
+        val event = HelperProtocol.parse(
+            "\uFEFF" + """{"v":1,"type":"ready","platform":"windows","maxLinks":7,""" +
+                """"serviceDataSupported":false,"serviceDataEnabled":false}""",
+        ) as HelperEvent.Ready
+        assertEquals("windows", event.platform)
+        assertEquals(7, event.maxLinks)
+    }
+
+    @Test
     fun `rejects an unsupported protocol version`() {
         val error = runCatching {
             HelperProtocol.parse("""{"v":2,"type":"ready","maxLinks":7}""")

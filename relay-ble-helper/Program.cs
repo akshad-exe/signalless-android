@@ -1,7 +1,9 @@
 using System.Text;
 using SignalLess.Relay.Ble;
 
-Console.OutputEncoding = Encoding.UTF8;
+// NDJSON is UTF-8 without a BOM. The default Encoding.UTF8 instance emits a
+// preamble on a new stream, which would corrupt the first protocol line.
+Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
 IHelperOutput? output = null;
 

@@ -16,10 +16,13 @@ object HelperProtocol {
     const val MAX_LINE_BYTES: Int = 1_048_576
 
     fun parse(line: String): HelperEvent {
-        require(line.toByteArray(StandardCharsets.UTF_8).size <= MAX_LINE_BYTES) {
+        // Windows console writers can prepend a UTF-8 BOM; it is not part of
+        // the JSON object and must not make the first event look malformed.
+        val text = line.removePrefix("\uFEFF")
+        require(text.toByteArray(StandardCharsets.UTF_8).size <= MAX_LINE_BYTES) {
             "helper line exceeds $MAX_LINE_BYTES bytes"
         }
-        val json = JsonParser.parseString(line)
+        val json = JsonParser.parseString(text)
         require(json.isJsonObject) { "helper line must be a JSON object" }
         val objectValue = json.asJsonObject
         require(objectValue.get("v")?.asInt == VERSION) {
