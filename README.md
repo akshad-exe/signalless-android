@@ -123,14 +123,15 @@ app/                            Android app
 └─ com.signalless.app.util      APK updater and distribution
 
 relay-desktop/                  Windows-only JVM relay
-└─ com.signalless.relay        CLI and BLE central scanning
+└─ com.signalless.relay        CLI and relay core (BLE transport in design)
 ```
 
 `relay-desktop` depends on `protocol-core` and is never packaged into the
-Android APK. Kable's JVM backend (btleplug) is central-only: the relay can scan
-for and connect to phones, but cannot advertise or host a GATT server on
-Windows. The relay therefore has to use phones' GATT servers rather than act as
-a BLE peripheral.
+Android APK. Kable's JVM backend (btleplug) is central-only, so it cannot be the
+relay's BLE peripheral. The planned transport is a native Windows peripheral
+helper that advertises the service and hosts the GATT server; phones keep their
+existing scan-and-connect role. Until that lands, the desktop module has no
+working BLE link.
 
 `com.signalless.android.*` is the Android platform layer; the rest of
 `com.signalless.app.*` is either app code or portable core. `protocol-core` must

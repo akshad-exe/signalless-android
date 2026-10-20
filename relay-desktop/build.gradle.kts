@@ -9,7 +9,7 @@ plugins {
 kotlin {
     jvmToolchain(21)
     compilerOptions {
-        // Kable's desktop runtime requires Java 17; protocol-core only needs 11.
+        // The relay toolchain is independent of the Android Java 11 bytecode.
         jvmTarget.set(JvmTarget.JVM_17)
     }
 }
@@ -26,7 +26,6 @@ application {
 
 dependencies {
     implementation(project(":protocol-core"))
-    implementation(libs.kable.core)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
