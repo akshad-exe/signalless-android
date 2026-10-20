@@ -1,7 +1,11 @@
 package com.signalless.relay
 
 import com.signalless.app.util.SLog
+import com.signalless.relay.identity.RelayIdentity
+import com.signalless.relay.identity.RelayIdentityStore
 import com.signalless.relay.transport.FakeRelayTransport
+import com.signalless.relay.transport.HelperProcessTransport
+import com.signalless.relay.transport.RelayTransport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,19 +19,25 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import kotlin.system.exitProcess
 
-const val VERSION: String = "0.1.0"
-
-private const val RELAY_PLACEHOLDER_PEER_ID = "0000000000000000"
+const val VERSION: String = "0.2.0"
 
 private const val USAGE = """Usage: relay-desktop [options]
 
 Options:
-  --peers <n>       Maximum simultaneous peer connections (1-64, default 7)
-  --ttl <n>         Maximum relay TTL (1-255, default 7)
-  --transport <m>   Transport: auto or fake (default: auto)
-  --log-file <path> Write logs to this file (default: stdout only)
-  -h, --help        Show this help
-  -V, --version     Show the version
+  --peers <n>                 Requested simultaneous links (1-64, default 7;
+                              the Windows helper clamps to 7)
+  --ttl <n>                   Maximum relay TTL (1-255, default 7)
+  --transport <mode>          auto, helper, or fake (default: auto)
+  --helper <path>             BLE helper executable; required for helper mode
+                              unless auto-discovery finds one
+  --identity-dir <path>       Persistent identity directory
+  --reset-identity            Explicitly create a new relay identity
+  --nickname <name>           Announcement nickname (max 15 characters)
+  --announce-interval <sec>   Refresh interval while connected (1-3600)
+  --advertise-service-data    Experimental 8-byte peer-ID service data
+  --log-file <path>           Write logs to this file (default: stdout only)
+  -h, --help                  Show this help
+  -V, --version               Show the version
 """
 
 fun main(args: Array<String>) {
@@ -58,38 +68,56 @@ internal fun run(args: Array<String>): Int {
 }
 
 private fun runRelay(config: RelayConfig): Int {
-    val transport = when (config.transport) {
-        TransportMode.FAKE -> FakeRelayTransport()
-        TransportMode.AUTO -> {
-            System.err.println(
-                "relay-desktop: the Windows BLE helper transport is not wired yet; " +
-                    "use --transport fake for protocol tests",
-            )
-            return 1
+    val identity = try {
+        when (config.transport) {
+            TransportMode.FAKE -> RelayIdentity.generate()
+            TransportMode.AUTO, TransportMode.HELPER -> {
+                val directory = config.identityDirectory ?: RelayIdentityStore.defaultDirectory()
+                RelayIdentityStore(directory).loadOrCreate(config.resetIdentity)
+            }
         }
+    } catch (error: Exception) {
+        System.err.println("relay-desktop: ${error.message}")
+        return 1
+    }
+
+    val logSink = installLogSink(config.logFile)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val transport = try {
+        createTransport(config, identity, scope)
+    } catch (error: Exception) {
+        scope.cancel()
+        logSink?.close()
+        System.err.println("relay-desktop: ${error.message}")
+        return 1
     }
 
     println("relay-desktop $VERSION")
     println("max peers: ${config.maxPeers}")
     println("ttl: ${config.ttl}")
     println("transport: ${config.transport.name.lowercase()}")
-    println("log file: ${config.logFile ?: "stdout only"}")
+    println("nickname: ${config.nickname}")
+    println("log output: ${if (config.logFile != null) "file" else "stdout only"}")
 
-    val logSink = installLogSink(config.logFile)
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = RelayEngine(
-        myPeerId = RELAY_PLACEHOLDER_PEER_ID,
+        myPeerId = identity.peerId,
         transport = transport,
         scope = scope,
-        maxLinks = config.maxPeers,
+        maxLinks = if (config.transport == TransportMode.FAKE) {
+            config.maxPeers
+        } else {
+            minOf(config.maxPeers, 7)
+        },
+        maxTtl = config.ttl.toUByte(),
+        identity = identity,
+        announcementNickname = config.nickname,
+        announceIntervalMs = config.announceIntervalSeconds * 1_000L,
     )
 
     return try {
         runBlocking {
             engine.start()
-            println(
-                "relay core started; identity and ANNOUNCE are added in the next phase",
-            )
+            println("relay core started")
             awaitCancellation()
         }
         0
@@ -104,6 +132,75 @@ private fun runRelay(config: RelayConfig): Int {
         logSink?.close()
     }
 }
+
+private fun createTransport(
+    config: RelayConfig,
+    identity: RelayIdentity,
+    scope: CoroutineScope,
+): RelayTransport {
+    return when (config.transport) {
+        TransportMode.FAKE -> FakeRelayTransport()
+        TransportMode.HELPER, TransportMode.AUTO -> {
+            val externalHelper =
+                config.helperPath != null || !System.getenv("SIGNALLESS_RELAY_HELPER").isNullOrBlank()
+            if (config.transport == TransportMode.AUTO && !isWindows() && !externalHelper) {
+                throw IllegalStateException(
+                    "no BLE helper is auto-detected on this platform; " +
+                        "use --transport fake for protocol tests or --transport helper " +
+                        "with a Linux BlueZ helper",
+                )
+            }
+            val helper = resolveHelper(config.helperPath)
+                ?: throw IllegalStateException(
+                    "could not find the BLE helper; pass --helper <path>",
+                )
+            val command = mutableListOf(
+                helper.toString(),
+                "--ipc",
+                "--no-echo",
+                "--max-links",
+                minOf(config.maxPeers, 7).toString(),
+            )
+            if (config.advertiseServiceData) {
+                command += listOf("--service-data", identity.peerId)
+            }
+            HelperProcessTransport(
+                command = command,
+                scope = scope,
+            )
+        }
+    }
+}
+
+private fun resolveHelper(explicit: Path?): Path? {
+    if (explicit != null) return explicit
+    val fromEnvironment = System.getenv("SIGNALLESS_RELAY_HELPER")
+    if (!fromEnvironment.isNullOrBlank()) return Path.of(fromEnvironment)
+
+    if (!isWindows()) return null
+
+    val names = listOf(
+        "SignalLessRelayBleHelper.exe",
+        "relay-ble-helper/SignalLessRelayBleHelper.exe",
+        "helper/SignalLessRelayBleHelper.exe",
+    )
+    val candidates = mutableListOf<Path>()
+    System.getProperty("jpackage.app-path")?.let { appPath ->
+        Path.of(appPath).parent?.let {
+            candidates.add(it.resolve("SignalLessRelayBleHelper.exe"))
+        }
+    }
+    System.getProperty("java.home")?.let { javaHome ->
+        Path.of(javaHome).parent?.let { appDirectory ->
+            candidates.add(appDirectory.resolve("SignalLessRelayBleHelper.exe"))
+        }
+    }
+    val workingDirectory = Path.of(System.getProperty("user.dir"))
+    candidates.addAll(names.map { workingDirectory.resolve(it) })
+    return candidates.firstOrNull { Files.isRegularFile(it) }
+}
+
+private fun isWindows(): Boolean = System.getProperty("os.name").lowercase().contains("win")
 
 private fun installLogSink(path: Path?): AutoCloseable? {
     if (path == null) return null

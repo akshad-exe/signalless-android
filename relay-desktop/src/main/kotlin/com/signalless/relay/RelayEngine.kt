@@ -1,27 +1,31 @@
 package com.signalless.relay
 
+import com.signalless.app.mesh.AnnouncementIdentityValidator
+import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SignalLessPacket
 import com.signalless.app.protocol.SpecialRecipients
 import com.signalless.app.sync.PacketIdUtil
 import com.signalless.app.util.SLog
 import com.signalless.app.util.toHexString
+import com.signalless.relay.identity.RelayIdentity
 import com.signalless.relay.transport.RelayTransport
 import com.signalless.relay.transport.RelayTransportEvent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Protocol-level relay engine.
  *
- * Phase 1 forwards complete packets and fragments opaquely. It deliberately
- * does not reassemble fragments or generate ANNOUNCE packets yet; those belong
- * to the identity and fragmentation phases. The engine is independent of the
- * concrete transport and is therefore testable with [FakeRelayTransport].
+ * The engine owns link admission, identity announcements, fragment reassembly,
+ * TTL/dedup decisions, per-link fragmentation, and bounded store-and-forward.
+ * Transports only move opaque bytes and report link lifecycle.
  */
 class RelayEngine(
     myPeerId: String,
@@ -30,6 +34,13 @@ class RelayEngine(
     maxLinks: Int = DEFAULT_MAX_LINKS,
     dedupCapacity: Int = DEFAULT_DEDUP_CAPACITY,
     dedupWindowMs: Long = DEFAULT_DEDUP_WINDOW_MS,
+    private val maxTtl: UByte = DEFAULT_MAX_TTL,
+    private val identity: RelayIdentity? = null,
+    private val announcementNickname: String = DEFAULT_NICKNAME,
+    private val announceIntervalMs: Long = DEFAULT_ANNOUNCE_INTERVAL_MS,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val fragmentSendDelayMs: Long = DEFAULT_FRAGMENT_DELAY_MS,
+    private val pendingStore: PendingPacketStore = PendingPacketStore(),
 ) {
     private val myPeerId: String = requireNotNull(RelayLinkRegistry.normalizePeerId(myPeerId)) {
         "myPeerId must be 16 hex characters"
@@ -40,11 +51,23 @@ class RelayEngine(
     }
     private val dedup = PacketDeduplicator(dedupCapacity, dedupWindowMs)
     private val counters = Counters()
+    private val fragmenter = RelayFragmenter()
+    private val assembler = RelayFragmentAssembler()
 
     @Volatile
     private var running: Boolean = false
 
     private var eventJob: Job? = null
+    private var announceJob: Job? = null
+
+    init {
+        require(identity == null || identity.peerId == myPeerId) {
+            "relay identity peer ID does not match myPeerId"
+        }
+        require(maxTtl > 0u.toUByte()) { "maxTtl must be positive" }
+        require(announceIntervalMs > 0) { "announceIntervalMs must be positive" }
+        require(fragmentSendDelayMs >= 0) { "fragmentSendDelayMs must not be negative" }
+    }
 
     suspend fun start() {
         check(!running) { "relay engine is already running" }
@@ -60,13 +83,23 @@ class RelayEngine(
                 counters.transportErrors.incrementAndGet()
             }
         }
+        if (identity != null) {
+            announceJob = scope.launch {
+                while (isActive) {
+                    delay(announceIntervalMs)
+                    if (running) announceToAllLinks()
+                }
+            }
+        }
     }
 
     suspend fun stop() {
-        if (!running && eventJob == null) return
         running = false
+        announceJob?.cancelAndJoin()
+        announceJob = null
         eventJob?.cancelAndJoin()
         eventJob = null
+        assembler.close()
         transport.stop()
         links.clear()
     }
@@ -88,24 +121,31 @@ class RelayEngine(
             }
 
             is RelayTransportEvent.LinkUp -> {
+                val existing = links.link(event.linkId)
+                if (existing == null && links.size() >= maxLinks) {
+                    counters.overCapacityLinks.incrementAndGet()
+                    SLog.w(
+                        TAG,
+                        "rejecting link ${event.linkId}: configured maxLinks=$maxLinks",
+                    )
+                    return
+                }
                 if (!links.add(event.linkId, event.mtu, event.maxNotificationSize)) {
                     counters.invalidLinks.incrementAndGet()
                     SLog.w(TAG, "ignored invalid link ${event.linkId}")
                     return
-                }
-                if (links.size() > maxLinks) {
-                    counters.overCapacityLinks.incrementAndGet()
-                    SLog.w(
-                        TAG,
-                        "link ${event.linkId} exceeds configured maxLinks=$maxLinks; " +
-                            "the transport must enforce admission",
-                    )
                 }
                 SLog.i(
                     TAG,
                     "link ${event.linkId} up mtu=${event.mtu} " +
                         "maxNotification=${event.maxNotificationSize}",
                 )
+
+                val link = links.link(event.linkId) ?: return
+                if (identity != null) {
+                    sendAnnouncementTo(link)
+                }
+                link.peerId?.let { flushPending(it) }
             }
 
             is RelayTransportEvent.LinkDown -> {
@@ -141,7 +181,24 @@ class RelayEngine(
             counters.ownPackets.incrementAndGet()
             return
         }
+
+        val previousPeer = links.peerFor(linkId)
         links.bindPeer(linkId, senderId)
+        if (previousPeer != senderId) {
+            flushPending(senderId)
+        }
+
+        if (packet.type == MessageType.ANNOUNCE.value && identity != null) {
+            val verified = AnnouncementIdentityValidator.verify(packet, senderId, clock()) {
+                    signature, signedData, publicKey ->
+                identity.verify(signature, signedData, publicKey)
+            }
+            if (verified == null) {
+                counters.announcementsRejected.incrementAndGet()
+                SLog.w(TAG, "rejected an invalid ANNOUNCE")
+                return
+            }
+        }
 
         if (isAddressedToMe(packet)) {
             counters.addressedToMe.incrementAndGet()
@@ -153,40 +210,141 @@ class RelayEngine(
             return
         }
 
+        if (packet.type == MessageType.FRAGMENT.value) {
+            if (!dedup.firstSeen(packet)) {
+                counters.duplicates.incrementAndGet()
+                return
+            }
+            val reassembled = assembler.accept(packet)
+            if (reassembled == null) {
+                counters.fragmentsPending.incrementAndGet()
+                return
+            }
+            counters.fragmentsAssembled.incrementAndGet()
+            relayPacket(reassembled, linkId)
+            return
+        }
+
+        relayPacket(packet, linkId)
+    }
+
+    private suspend fun relayPacket(packet: SignalLessPacket, ingressLinkId: String) {
+        if (packet.ttl == 0u.toUByte()) {
+            counters.ttlExpired.incrementAndGet()
+            return
+        }
+
         if (!dedup.firstSeen(packet)) {
             counters.duplicates.incrementAndGet()
             return
         }
 
-        val relayed = packet.copy(ttl = (packet.ttl - 1u).toUByte())
-        val targets = targetsFor(packet, linkId)
+        val relayTtl = minOf(packet.ttl, maxTtl)
+        val relayed = packet.copy(ttl = (relayTtl - 1u).toUByte())
+        val targets = targetsFor(relayed, ingressLinkId)
         if (targets.isEmpty()) {
-            counters.noRoute.incrementAndGet()
-            return
-        }
-
-        val encoded = relayed.toBinaryData()
-        if (encoded == null) {
-            counters.encodeFailed.incrementAndGet()
+            val recipient = relayed.recipientID
+            if (recipient != null && !recipient.contentEquals(SpecialRecipients.BROADCAST)) {
+                if (pendingStore.store(recipient.toHexString(), relayed)) {
+                    counters.stored.incrementAndGet()
+                } else {
+                    counters.storeRejected.incrementAndGet()
+                }
+                counters.noRoute.incrementAndGet()
+            } else {
+                counters.noRoute.incrementAndGet()
+            }
             return
         }
 
         for (target in targets) {
-            if (encoded.size > target.maxNotificationSize) {
-                counters.oversized.incrementAndGet()
-                SLog.w(
-                    TAG,
-                    "dropping ${encoded.size}-byte packet for ${target.id}; " +
-                        "maxNotification=${target.maxNotificationSize}",
-                )
-                continue
+            if (sendPacketToTarget(relayed, target)) {
+                counters.forwarded.incrementAndGet()
             }
+        }
+    }
 
+    private suspend fun sendPacketToTarget(
+        packet: SignalLessPacket,
+        target: RelayLink,
+        countAnnouncement: Boolean = false,
+    ): Boolean {
+        val encoded = packet.toBinaryData()
+        if (encoded == null) {
+            counters.encodeFailed.incrementAndGet()
+            return false
+        }
+
+        if (encoded.size <= target.maxNotificationSize) {
             val result = transport.send(target.id, encoded)
             if (result.isSuccess) {
-                counters.forwarded.incrementAndGet()
-            } else {
+                counters.framesSent.incrementAndGet()
+                if (countAnnouncement) counters.announcementsSent.incrementAndGet()
+                return true
+            }
+            counters.sendFailed.incrementAndGet()
+            return false
+        }
+
+        val fragments = fragmenter.fragment(packet, target.maxNotificationSize)
+        if (fragments.isNullOrEmpty()) {
+            counters.oversized.incrementAndGet()
+            counters.fragmentSendFailed.incrementAndGet()
+            SLog.w(
+                TAG,
+                "cannot fragment ${encoded.size}-byte packet for ${target.id}; " +
+                    "maxNotification=${target.maxNotificationSize}",
+            )
+            return false
+        }
+
+        for ((index, fragment) in fragments.withIndex()) {
+            val bytes = fragment.toBinaryData(padding = false)
+            if (bytes == null || bytes.size > target.maxNotificationSize) {
+                counters.fragmentSendFailed.incrementAndGet()
+                return false
+            }
+            val result = transport.send(target.id, bytes)
+            if (result.isFailure) {
                 counters.sendFailed.incrementAndGet()
+                return false
+            }
+            counters.framesSent.incrementAndGet()
+            if (index < fragments.lastIndex && fragmentSendDelayMs > 0) {
+                delay(fragmentSendDelayMs)
+            }
+        }
+        if (countAnnouncement) counters.announcementsSent.incrementAndGet()
+        return true
+    }
+
+    private suspend fun sendAnnouncementTo(link: RelayLink) {
+        val currentIdentity = identity ?: return
+        val announcement = currentIdentity.signedAnnouncement(
+            nickname = announcementNickname,
+            ttl = DEFAULT_ANNOUNCE_TTL,
+            timestampMs = clock(),
+        )
+        sendPacketToTarget(announcement, link, countAnnouncement = true)
+    }
+
+    private suspend fun announceToAllLinks() {
+        links.snapshot().forEach { link ->
+            sendAnnouncementTo(link)
+        }
+    }
+
+    private suspend fun flushPending(peerId: String) {
+        val targets = links.linksForPeer(peerId)
+        if (targets.isEmpty()) return
+        val packets = pendingStore.take(peerId)
+        if (packets.isEmpty()) return
+
+        for (packet in packets) {
+            for (target in targets) {
+                if (sendPacketToTarget(packet, target)) {
+                    counters.storeFlushed.incrementAndGet()
+                }
             }
         }
     }
@@ -259,6 +417,15 @@ class RelayEngine(
         val invalidLinks = AtomicLong()
         val overCapacityLinks = AtomicLong()
         val transportErrors = AtomicLong()
+        val fragmentsPending = AtomicLong()
+        val fragmentsAssembled = AtomicLong()
+        val fragmentSendFailed = AtomicLong()
+        val stored = AtomicLong()
+        val storeFlushed = AtomicLong()
+        val storeRejected = AtomicLong()
+        val announcementsSent = AtomicLong()
+        val announcementsRejected = AtomicLong()
+        val framesSent = AtomicLong()
 
         fun snapshot(): RelayStats = RelayStats(
             received = received.get(),
@@ -276,14 +443,28 @@ class RelayEngine(
             invalidLinks = invalidLinks.get(),
             overCapacityLinks = overCapacityLinks.get(),
             transportErrors = transportErrors.get(),
+            fragmentsPending = fragmentsPending.get(),
+            fragmentsAssembled = fragmentsAssembled.get(),
+            fragmentSendFailed = fragmentSendFailed.get(),
+            stored = stored.get(),
+            storeFlushed = storeFlushed.get(),
+            storeRejected = storeRejected.get(),
+            announcementsSent = announcementsSent.get(),
+            announcementsRejected = announcementsRejected.get(),
+            framesSent = framesSent.get(),
         )
     }
 
     companion object {
         private const val TAG = "RelayEngine"
         const val DEFAULT_MAX_LINKS: Int = 7
+        val DEFAULT_MAX_TTL: UByte = 7u
         const val DEFAULT_DEDUP_CAPACITY: Int = 2_048
         const val DEFAULT_DEDUP_WINDOW_MS: Long = 60_000L
+        const val DEFAULT_NICKNAME: String = "SignalLessRelay"
+        const val DEFAULT_ANNOUNCE_INTERVAL_MS: Long = 60_000L
+        const val DEFAULT_FRAGMENT_DELAY_MS: Long = 15L
+        val DEFAULT_ANNOUNCE_TTL: UByte = 7u
     }
 }
 
@@ -303,4 +484,13 @@ data class RelayStats(
     val invalidLinks: Long,
     val overCapacityLinks: Long,
     val transportErrors: Long,
+    val fragmentsPending: Long = 0L,
+    val fragmentsAssembled: Long = 0L,
+    val fragmentSendFailed: Long = 0L,
+    val stored: Long = 0L,
+    val storeFlushed: Long = 0L,
+    val storeRejected: Long = 0L,
+    val announcementsSent: Long = 0L,
+    val announcementsRejected: Long = 0L,
+    val framesSent: Long = 0L,
 )

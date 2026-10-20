@@ -61,7 +61,7 @@ class RelayConfigTest {
 
     @Test
     fun `rejects an unknown transport`() {
-        assertCliError("--transport must be auto or fake") {
+        assertCliError("--transport must be auto, helper, or fake") {
             RelayConfig.parse(listOf("--transport", "ble"))
         }
     }
