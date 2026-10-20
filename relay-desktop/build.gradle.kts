@@ -28,4 +28,6 @@ dependencies {
     implementation(project(":protocol-core"))
     implementation(libs.kable.core)
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit)
 }
