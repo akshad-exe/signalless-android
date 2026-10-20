@@ -123,15 +123,19 @@ app/                            Android app
 └─ com.signalless.app.util      APK updater and distribution
 
 relay-desktop/                  Windows-only JVM relay
-└─ com.signalless.relay        CLI and relay core (BLE transport in design)
+└─ com.signalless.relay        CLI and relay core
+
+relay-ble-helper/               Windows-only C# BLE peripheral helper
+└─ SignalLess.Relay.Ble        WinRT GATT server, advertising, link lifecycle
 ```
 
 `relay-desktop` depends on `protocol-core` and is never packaged into the
 Android APK. Kable's JVM backend (btleplug) is central-only, so it cannot be the
-relay's BLE peripheral. The planned transport is a native Windows peripheral
-helper that advertises the service and hosts the GATT server; phones keep their
-existing scan-and-connect role. Until that lands, the desktop module has no
-working BLE link.
+relay's BLE peripheral. `relay-ble-helper` is a separate .NET console process
+that advertises the service and hosts the GATT server; phones keep their
+existing scan-and-connect role. The helper is not part of the Gradle build and
+has its own Windows CI job. Phase 2 is a terminal harness; NDJSON wiring lands
+in Phase 3.
 
 `com.signalless.android.*` is the Android platform layer; the rest of
 `com.signalless.app.*` is either app code or portable core. `protocol-core` must
