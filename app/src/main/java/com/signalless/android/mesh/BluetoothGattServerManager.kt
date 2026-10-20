@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
@@ -15,6 +15,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+
+
 
 /**
  * Manages GATT server operations, advertising, and server-side connections

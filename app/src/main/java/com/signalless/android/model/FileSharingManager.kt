@@ -1,10 +1,13 @@
-package com.signalless.app.model
+package com.signalless.android.model
 
 import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.signalless.app.features.file.FileUtils
 import java.io.File
+
+import com.signalless.app.model.SignalLessFilePacket
+
 
 /**
  * Business logic for file sharing operations

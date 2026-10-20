@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.bluetooth.*
 import android.content.Context
@@ -8,6 +8,8 @@ import com.signalless.app.protocol.SignalLessPacket
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import com.signalless.app.mesh.FragmentManager
+
 
 /**
  * Power-optimized Bluetooth connection manager with comprehensive memory management

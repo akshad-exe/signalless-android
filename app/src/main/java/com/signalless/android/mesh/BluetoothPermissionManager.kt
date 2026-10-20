@@ -1,9 +1,10 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
+
 
 /**
  * Handles all Bluetooth permission checking logic

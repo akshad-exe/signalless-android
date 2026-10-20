@@ -1,13 +1,19 @@
-package com.signalless.app.sync
+package com.signalless.android.sync
 
 import android.util.Log
-import com.signalless.app.mesh.BluetoothPacketBroadcaster
+import com.signalless.android.mesh.BluetoothPacketBroadcaster
 import com.signalless.app.model.RequestSyncPacket
 import com.signalless.app.protocol.SignalLessPacket
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SpecialRecipients
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
+import com.signalless.app.util.AppConstants
+
+import com.signalless.app.sync.GCSFilter
+import com.signalless.app.sync.PacketIdUtil
+
+import com.signalless.app.sync.SyncDefaults
 
 /**
  * Gossip-based synchronization manager using on-demand GCS filters.

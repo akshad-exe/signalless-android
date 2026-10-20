@@ -1,6 +1,6 @@
 package com.signalless.app.ui
 
-import com.signalless.app.mesh.BluetoothMeshDelegate
+import com.signalless.android.mesh.BluetoothMeshDelegate
 import com.signalless.app.ui.NotificationTextUtils
 import com.signalless.app.mesh.MeshService
 import com.signalless.app.model.SignalLessMessage

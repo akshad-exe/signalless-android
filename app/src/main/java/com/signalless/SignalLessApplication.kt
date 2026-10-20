@@ -27,7 +27,7 @@ class SignalLessApplication : Application() {
         }
 
         // Start the single process-wide power policy before transport components are constructed.
-        com.signalless.app.mesh.PowerManager.getInstance(this).start()
+        com.signalless.android.mesh.PowerManager.getInstance(this).start()
 
         // Initialize Tor first so any early network goes over Tor
         try {

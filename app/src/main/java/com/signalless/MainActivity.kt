@@ -19,7 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
-import com.signalless.app.mesh.BluetoothMeshService
+import com.signalless.android.mesh.BluetoothMeshService
 import com.signalless.app.mesh.MeshService
 import com.signalless.app.geohash.LocationChannelManager
 import com.signalless.app.onboarding.BluetoothCheckScreen

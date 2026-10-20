@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.content.Context
 import android.util.Log
@@ -17,6 +17,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+import com.signalless.app.mesh.MeshDelegate
+import com.signalless.app.mesh.MeshService
+import com.signalless.app.mesh.PeerInfo
+import com.signalless.app.mesh.PrivateMediaPreparation
+
 
 /**
  * Feature-facing mesh service that hides local transport selection from the rest of the app.

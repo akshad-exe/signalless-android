@@ -1,4 +1,4 @@
-package com.signalless.app.noise
+package com.signalless.android.noise
 
 import android.content.Context
 import android.util.Log
@@ -8,6 +8,16 @@ import com.signalless.app.noise.southernstorm.protocol.Noise
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
+import com.signalless.app.util.AppConstants
+import com.signalless.app.noise.AuthenticatedNoiseSession
+
+import com.signalless.app.noise.NoiseChannelEncryption
+import com.signalless.app.noise.NoiseDecryptionResult
+import com.signalless.app.noise.NoiseHandshakeProcessingResult
+import com.signalless.app.noise.NoiseSession
+import com.signalless.app.noise.NoiseSessionManager
+import com.signalless.app.protocol.SignalLessPacket
+
 
 /**
  * Main Noise encryption service - 100% compatible with iOS implementation

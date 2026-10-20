@@ -1,5 +1,5 @@
 
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
@@ -24,6 +24,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.actor
 import java.util.ArrayDeque
+import com.signalless.app.mesh.BLEPacketPaddingPolicy
+
+import com.signalless.app.mesh.FragmentManager
+import com.signalless.app.mesh.FragmentingPacketSender
+
 
 /**
  * Handles packet broadcasting to connected devices using actor pattern for serialization

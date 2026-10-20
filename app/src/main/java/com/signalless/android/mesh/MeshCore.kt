@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.content.Context
 import android.util.Log
@@ -17,7 +17,7 @@ import com.signalless.app.protocol.SignalLessPacket
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SpecialRecipients
 import com.signalless.app.service.TransportBridgeService
-import com.signalless.app.sync.GossipSyncManager
+import com.signalless.android.sync.GossipSyncManager
 import com.signalless.app.util.toHexString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -25,6 +25,31 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
+import com.signalless.app.noise.AuthenticatedNoiseSession
+
+import com.signalless.app.model.DeliveryStatus
+import com.signalless.app.mesh.FragmentManager
+import com.signalless.app.mesh.MeshDelegate
+import com.signalless.app.mesh.MeshPacketUtils
+import com.signalless.app.mesh.MeshTransport
+import com.signalless.app.noise.NoiseDecryptionResult
+import com.signalless.app.noise.NoiseSession
+import com.signalless.app.noise.NoiseSessionError
+import com.signalless.app.mesh.PacketProcessor
+import com.signalless.app.mesh.PacketProcessorDelegate
+import com.signalless.app.mesh.PeerInfo
+import com.signalless.app.mesh.PeerManager
+import com.signalless.app.mesh.PeerManagerDelegate
+import com.signalless.app.mesh.PreparedPrivateMediaTransfer
+import com.signalless.app.mesh.PrivateMediaBuildOutcome
+import com.signalless.app.mesh.PrivateMediaEncryptionResult
+import com.signalless.app.mesh.PrivateMediaPreparation
+import com.signalless.app.mesh.PrivateMediaSecurityController
+import com.signalless.app.mesh.PrivateMediaTransferPreparer
+import com.signalless.app.mesh.RetryingControlPacketSender
+import com.signalless.app.mesh.StoreForwardManager
+import com.signalless.app.mesh.StoreForwardManagerDelegate
+
 
 /**
  * Shared mesh coordinator that wires all mesh-layer components and provides common APIs

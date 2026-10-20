@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -10,6 +10,9 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.UUID
+import com.signalless.app.util.AppConstants
+import com.signalless.app.mesh.MeshConnectionTracker
+
 
 /**
  * Tracks all Bluetooth connections and handles cleanup

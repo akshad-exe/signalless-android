@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.util.Log
 import com.signalless.app.crypto.EncryptionService
@@ -12,6 +12,11 @@ import com.signalless.app.util.toHexString
 import kotlinx.coroutines.*
 import java.util.*
 import kotlin.collections.mutableSetOf
+import com.signalless.app.mesh.AnnouncementIdentityValidator
+import com.signalless.app.util.AppConstants
+
+import com.signalless.app.mesh.PeerInfo
+
 
 /**
  * Manages security aspects of the mesh network including duplicate detection,

@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
@@ -17,6 +17,7 @@ import java.util.*
 import kotlinx.coroutines.Job
 import com.signalless.app.ui.debug.DebugSettingsManager
 import com.signalless.app.ui.debug.DebugScanResult
+
 
 /**
  * Manages GATT client operations, scanning, and client-side connections

@@ -1,4 +1,4 @@
-package com.signalless.app.mesh
+package com.signalless.android.mesh
 
 import android.content.Context
 import com.signalless.app.identity.SecureIdentityStateManager
@@ -11,6 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.signalless.app.mesh.AuthenticatedPeerStateStatus
+
+
 
 internal interface AuthenticatedPeerStateStore {
     fun load(fingerprint: String): AuthenticatedPeerState?
