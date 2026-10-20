@@ -98,7 +98,7 @@ if you want the mesh to work.
 
 ## Architecture
 
-Two Gradle modules share one build:
+Three Gradle modules share one build:
 
 ```
 protocol-core/                  portable JVM code, no Android imports
@@ -121,7 +121,13 @@ app/                            Android app
 ├─ com.signalless.app.features  file and voice transfer
 ├─ com.signalless.app.service   foreground service, app lifecycle
 └─ com.signalless.app.util      APK updater and distribution
+
+relay-desktop/                  Windows-only JVM relay
+└─ com.signalless.relay        CLI and BLE transport wiring
 ```
+
+`relay-desktop` depends on `protocol-core` and is never packaged into the
+Android APK.
 
 `com.signalless.android.*` is the Android platform layer; the rest of
 `com.signalless.app.*` is either app code or portable core. `protocol-core` must
