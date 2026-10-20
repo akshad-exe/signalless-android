@@ -1,0 +1,51 @@
+name: Desktop relay
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths:
+      - "relay-ble-helper/**"
+      - ".github/workflows/relay-desktop.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "relay-ble-helper/**"
+      - ".github/workflows/relay-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-helper:
+    name: Build Windows BLE helper
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build helper
+        shell: pwsh
+        run: dotnet build relay-ble-helper/RelayBleHelper.csproj -c Release --nologo
+
+      - name: Publish self-contained helper
+        shell: pwsh
+        run: >
+          dotnet publish relay-ble-helper/RelayBleHelper.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:DebugType=None -p:DebugSymbols=false
+          --nologo -o out/helper
+
+      - name: Upload helper
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: relay-ble-helper-win-x64
+          path: out/helper
+          if-no-files-found: error
