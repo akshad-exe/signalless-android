@@ -1,11 +1,10 @@
-# SignalLess relay BLE helper (Phase 2 spike)
+# SignalLess relay BLE helper
 
-This is a small Windows-only C#/.NET console harness for the SignalLess desktop
-relay. It proves the Windows Bluetooth LE **peripheral** path before the Kotlin
-relay is wired to it.
+This is the Windows-only BLE peripheral process for the SignalLess desktop
+relay. It is **not** part of the Android build and must never be packaged into
+the APK.
 
-It is **not** part of the Android build and must never be packaged into the APK.
-The Kotlin `relay-desktop` module owns protocol, identity, TTL, deduplication,
+The Kotlin `relay-desktop` core owns protocol, identity, TTL, deduplication,
 fragmentation, and relay policy. This helper owns only the WinRT pieces:
 
 - adapter capability checks;
@@ -13,9 +12,10 @@ fragmentation, and relay policy. This helper owns only the WinRT pieces:
 - advertising;
 - link lifecycle and opaque link IDs;
 - MTU / maximum notification size reporting;
-- echoing one write back to its sender for the hardware test.
+- NDJSON over stdin/stdout and a bounded per-link notification queue.
 
-Phase 3 replaces the human-readable output with the NDJSON process protocol.
+The terminal mode still echoes one write for the hardware check. IPC mode does
+not echo; the Kotlin core decides every transmission.
 
 ## Requirements
 
@@ -37,8 +37,8 @@ dotnet run --project relay-ble-helper/RelayBleHelper.csproj -- --help
 dotnet run --project relay-ble-helper/RelayBleHelper.csproj
 ```
 
-Diagnostics go to **stderr**. Standard output is reserved for the NDJSON
-protocol that Phase 3 will add. A healthy start looks like this:
+Diagnostics go to **stderr**. In terminal mode, standard output is unused. In IPC
+mode, standard output is NDJSON only. A healthy terminal start looks like this:
 
 ```text
 info adapter le=true peripheral=true maxAdvertisementDataLength=31
@@ -48,8 +48,8 @@ info ready; press Ctrl+C to stop
 ```
 
 The first advertising line reports the status immediately after the request; the
-`state=Started` line is the asynchronous confirmation. Treat `state=Aborted` or
-`state=StartedWithoutAllAdvertisementData` as a failure or degraded result.
+`state=Started` line is the asynchronous confirmation. Treat `state=Aborted` as
+a failure and `state=StartedWithoutAllAdvertisementData` as degraded.
 
 Then, after the phone scans and subscribes:
 
@@ -60,10 +60,33 @@ info tx link=l1 bytes=42 echo=true
 ```
 
 Link IDs are opaque and process-local. Logs never include Bluetooth addresses,
-device names, peer IDs, packet bytes, or keys.
+device names, peer IDs, packet bytes, keys, or nicknames.
 
-The echo is sent inline after the write response. That is intentional for this
-one-phone spike; Phase 3 moves sends to a bounded per-link writer loop.
+## IPC mode
+
+The Kotlin core starts the helper as:
+
+```powershell
+relay-ble-helper.exe --ipc --no-echo --max-links 7
+```
+
+The helper emits `ready`, `advertising`, `link_up`, `link_down`, `rx`,
+`tx_result`, and `error` objects. It accepts `start`, `tx`, `stop`, and
+`shutdown`. The full field table is in
+[`relay-desktop/README.md`](../relay-desktop/README.md).
+
+A representative exchange:
+
+```json
+{"v":1,"type":"ready","platform":"windows","maxLinks":7,"serviceDataSupported":true,"serviceDataEnabled":false,"api":"10.0.22631"}
+{"v":1,"type":"link_up","link":"l1","mtu":517,"maxNotification":514}
+{"v":1,"type":"rx","link":"l1","data":"AQIDBA=="}
+{"v":1,"type":"tx_result","link":"l1","seq":1,"ok":true}
+```
+
+The helper exits cleanly when stdin closes or after `shutdown`. A bounded
+per-link writer queue prevents a slow phone from blocking other links; a full
+queue returns `tx_result` with `ok=false` and `error` set to `TX_QUEUE_FULL`.
 
 ## Advertising modes
 
@@ -125,14 +148,15 @@ Run this on the Windows machine, with the phone unlocked and awake.
 - [ ] The phone sees the relay in its scan.
 - [ ] Android's `ScanRecord.serviceUuids` contains
       `F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C`.
-- [ ] The phone connects and subscribes; the helper logs `link up` with an
+- [ ] The phone connects and subscribes; the helper emits `link_up` with an
       opaque link ID, MTU, and maximum notification size.
-- [ ] One phone write arrives; the helper logs the byte count only.
-- [ ] The helper notifies the same bytes; the phone receives the echo.
-- [ ] Repeat with the service-data experiment. Record whether the UUID
-      remains visible. If it does not, leave the flag off.
+- [ ] One phone write arrives; the helper emits `rx` with the byte count only.
+- [ ] A Kotlin `tx` command produces `tx_result ok=true` and the phone receives
+      the bytes.
 - [ ] Repeat with 2 and 4 phones. Record the practical link limit.
-- [ ] Confirm no MAC address, device name, payload, or key appears in the log.
+- [ ] Kill the helper while the core is running and confirm bounded restart.
+- [ ] Confirm no MAC address, device name, payload, key, or nickname appears in
+      the log or NDJSON.
 
 This is a physical gate. CI can compile the helper but cannot validate the
 adapter, advertisement bytes, CCCD behavior, MTU, notifications, or reconnects.
@@ -149,13 +173,16 @@ adapter, advertisement bytes, CCCD behavior, MTU, notifications, or reconnects.
 | `ADVERTISING_FAILED` | `StartAdvertising` threw or the OS reported `Aborted`. |
 | `ADVERTISING_DEGRADED` | The OS accepted advertising but dropped data. Check the UUID on the phone. |
 | `LINK_LIMIT` | The local link cap was reached; Windows may still refuse the connection. |
+| `TX_QUEUE_FULL` | The per-link writer queue is full; the phone is not draining notifications. |
+| `PROTOCOL_ERROR` | A malformed NDJSON command; the process stays alive. |
 
 If `GATT_CREATE_FAILED` reports `AccessDenied` or `DisabledByPolicy`, check the
 adapter's peripheral-role support and whether the process is allowed to use the
 Bluetooth APIs in its current session. A future MSIX package can declare the
-`bluetooth` capability; this spike is an unpackaged console app.
+`bluetooth` capability; this build is an unpackaged console app.
 
 ## CI
 
-`.github/workflows/relay-desktop.yml` builds and publishes the helper on
-`windows-latest`. It does not run the physical test.
+`.github/workflows/relay-desktop.yml` runs the Kotlin tests on Ubuntu, builds and
+publishes the helper on `windows-latest`, and creates the Windows app-image zip.
+It does not run the physical test.

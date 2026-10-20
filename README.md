@@ -11,7 +11,8 @@ See [NOTICE](NOTICE) for attribution and licensing.
 ## Status
 
 This is a working fork with an Android-only build. It compiles and its unit
-suite passes (572 tests, 0 failures), including the protocol golden vectors.
+suite passes (585 tests, 0 failures, 3 skipped on this workstation), including
+the protocol golden vectors.
 
 Not yet done:
 
@@ -134,8 +135,13 @@ Android APK. Kable's JVM backend (btleplug) is central-only, so it cannot be the
 relay's BLE peripheral. `relay-ble-helper` is a separate .NET console process
 that advertises the service and hosts the GATT server; phones keep their
 existing scan-and-connect role. The helper is not part of the Gradle build and
-has its own Windows CI job. Phase 2 is a terminal harness; NDJSON wiring lands
-in Phase 3.
+has its own Windows CI job.
+
+The Kotlin core owns identity, signed announcements, TTL/dedup, fragment
+reassembly, per-link fragmentation, and bounded store-and-forward. The helper
+owns only WinRT GATT and advertising, and speaks NDJSON over stdin/stdout. See
+[relay-desktop/README.md](relay-desktop/README.md) for the protocol, scale
+model, Windows constraints, and the physical test checklist.
 
 `com.signalless.android.*` is the Android platform layer; the rest of
 `com.signalless.app.*` is either app code or portable core. `protocol-core` must
