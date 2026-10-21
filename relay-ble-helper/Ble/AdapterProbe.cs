@@ -1,5 +1,7 @@
 using Windows.Devices.Bluetooth;
 using Windows.Foundation.Metadata;
+using SignalLess.Relay.Cli;
+using SignalLess.Relay.Diagnostics;
 
 namespace SignalLess.Relay.Ble;
 

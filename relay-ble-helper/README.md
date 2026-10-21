@@ -17,6 +17,24 @@ fragmentation, and relay policy. This helper owns only the WinRT pieces:
 The terminal mode still echoes one write for the hardware check. IPC mode does
 not echo; the Kotlin core decides every transmission.
 
+## Layout
+
+```text
+relay-ble-helper/
+├─ Ble/            adapter checks, GATT host, and buffer helpers
+├─ Advertising/    advertisement scanner used by --scan
+├─ Ipc/            NDJSON output and the stdin command loop
+├─ Cli/            argument parsing, help text, and exceptions
+├─ Diagnostics/    stderr logger
+├─ Program.cs      entry point and mode selection
+└─ RelayBleHelper.csproj
+```
+
+Namespaces mirror the folders (`SignalLess.Relay.Ble`,
+`SignalLess.Relay.Advertising`, `SignalLess.Relay.Ipc`,
+`SignalLess.Relay.Cli`, `SignalLess.Relay.Diagnostics`). The project does not
+reference the Kotlin relay or any Android code.
+
 ## Requirements
 
 - Windows 11 with a working Bluetooth adapter.

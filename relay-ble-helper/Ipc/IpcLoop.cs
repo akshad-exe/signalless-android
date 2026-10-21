@@ -1,6 +1,7 @@
 using System.Text.Json;
+using SignalLess.Relay.Ble;
 
-namespace SignalLess.Relay.Ble;
+namespace SignalLess.Relay.Ipc;
 
 /// <summary>
 /// Reads NDJSON commands from stdin and drives the GATT server.

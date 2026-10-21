@@ -1,6 +1,9 @@
 using Windows.Devices.Bluetooth.Advertisement;
+using SignalLess.Relay.Ble;
+using SignalLess.Relay.Cli;
+using SignalLess.Relay.Diagnostics;
 
-namespace SignalLess.Relay.Ble;
+namespace SignalLess.Relay.Advertising;
 
 internal static class AdvertisementProbe
 {

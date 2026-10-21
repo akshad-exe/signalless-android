@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
 
     <AssemblyName>SignalLessRelayBleHelper</AssemblyName>
-    <RootNamespace>SignalLess.Relay.Ble</RootNamespace>
+    <RootNamespace>SignalLess.Relay</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

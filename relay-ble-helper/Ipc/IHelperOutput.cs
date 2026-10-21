@@ -1,7 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SignalLess.Relay.Diagnostics;
 
-namespace SignalLess.Relay.Ble;
+namespace SignalLess.Relay.Ipc;
 
 /// <summary>
 /// Sink for helper lifecycle events. The terminal implementation leaves the

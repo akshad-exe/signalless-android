@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace SignalLess.Relay.Ble;
+namespace SignalLess.Relay.Cli;
 
 internal sealed record HelperOptions
 {

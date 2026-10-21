@@ -1,5 +1,9 @@
 using System.Text;
+using SignalLess.Relay.Advertising;
 using SignalLess.Relay.Ble;
+using SignalLess.Relay.Cli;
+using SignalLess.Relay.Diagnostics;
+using SignalLess.Relay.Ipc;
 
 // NDJSON is UTF-8 without a BOM. The default Encoding.UTF8 instance emits a
 // preamble on a new stream, which would corrupt the first protocol line.

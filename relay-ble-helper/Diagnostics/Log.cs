@@ -1,4 +1,4 @@
-namespace SignalLess.Relay.Ble;
+namespace SignalLess.Relay.Diagnostics;
 
 internal static class Log
 {
