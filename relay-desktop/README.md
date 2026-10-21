@@ -200,8 +200,9 @@ The `Desktop relay` GitHub Actions workflow:
 3. creates a `jpackage` app image with a trimmed Java runtime;
 4. copies the helper beside the app and writes a Windows x64 zip.
 
-A tagged `v*` push attaches the zip to a GitHub Release. The Android workflow
-does not build or embed the relay.
+A tagged `v*` push attaches the zip to a GitHub Release. Relevant pull requests
+build the same zip and upload it as a workflow artifact, so the packaging path is
+tested before a release. The Android workflow does not build or embed the relay.
 
 ## Physical test checklist
 

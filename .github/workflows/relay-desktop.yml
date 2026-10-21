@@ -103,7 +103,7 @@ jobs:
   windows-package:
     name: Package Windows relay
     needs: [kotlin-core, windows-helper]
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/relay-v')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/relay-v')
     runs-on: windows-latest
     timeout-minutes: 25
     permissions:
