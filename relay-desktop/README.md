@@ -39,6 +39,41 @@ Windows exposes the peripheral role through WinRT `GattServiceProvider`, so the
 helper is a small C#/.NET console process. It is not part of the Gradle build and
 must not be copied into an APK.
 
+## Running the relay
+
+The relay is headless infrastructure. It has no chat list, message view, or
+settings window; the Android app is the only user interface. Run it on an
+always-on Windows machine within BLE range of the phones.
+
+1. Unzip the release.
+2. Start `SignalLessRelay.exe`. The Windows launcher opens a console for
+   diagnostics; keep it running.
+3. It advertises the SignalLess service and waits for phones to connect.
+4. On each phone, open SignalLess. The relay appears in People under the
+   configured nickname (default `SignalLessRelay`) after its signed `ANNOUNCE`.
+5. Phones keep their normal scan/connect role. No relay setting is needed on the
+   phone; the relay is just another mesh peer.
+
+For unattended startup, use Task Scheduler and pass `--log-file <path>`. The
+console is only a diagnostic view; closing it stops the relay.
+
+### How a message crosses the relay
+
+```text
+Phone A ──BLE──> relay ──BLE──> Phone B
+```
+
+Phone A sends a normal SignalLess packet addressed to Phone B. If the packet
+reaches the relay, the relay reassembles any fragments, checks TTL and
+deduplication, then re-fragments for the link to B and forwards it. If B is
+temporarily absent, a unicast packet is kept in the bounded cache and delivered
+when B reconnects. Broadcasts go to every other link.
+
+The relay does not hold Noise session keys and does not decrypt message or media
+payloads. It sees routing metadata (sender, recipient, type, TTL, size) and the
+public signed announcement; it does not see message text, media, or contact
+data.
+
 ## Identity and ANNOUNCE
 
 The relay creates two persistent key pairs on first run:
@@ -197,7 +232,8 @@ The `Desktop relay` GitHub Actions workflow:
 
 1. runs the Kotlin relay tests on Ubuntu;
 2. builds and publishes the self-contained Windows helper on `windows-latest`;
-3. creates a `jpackage` app image with a trimmed Java runtime;
+3. creates a `jpackage` app image with a trimmed Java runtime and a console
+   launcher (`--win-console`) so diagnostics are visible when started by hand;
 4. copies the helper beside the app and writes a Windows x64 zip.
 
 A tagged `v*` push attaches the zip to a GitHub Release. Relevant pull requests

@@ -141,6 +141,7 @@ jobs:
           --input relay-dist/lib
           --main-jar relay-desktop.jar
           --main-class com.signalless.relay.MainKt
+          --win-console
           --dest out/package
           --java-options "-Xmx256m"
 
