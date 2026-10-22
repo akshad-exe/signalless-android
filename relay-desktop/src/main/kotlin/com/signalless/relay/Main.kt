@@ -23,7 +23,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import kotlin.system.exitProcess
 
-const val VERSION: String = "0.2.0"
+const val VERSION: String = "0.3.0"
 
 private const val USAGE = """Usage: relay-desktop [options]
 

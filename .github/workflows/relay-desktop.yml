@@ -137,24 +137,76 @@ jobs:
           jpackage
           --type app-image
           --name SignalLessRelay
-          --app-version "0.2.0"
+          --app-version "0.3.0"
           --input relay-dist/lib
           --main-jar relay-desktop.jar
           --main-class com.signalless.relay.MainKt
+          --add-modules "java.desktop,jdk.unsupported,jdk.crypto.ec"
           --win-console
           --dest out/package
-          --java-options "-Xmx256m"
+          --java-options "-Xmx512m"
+
+      - name: Smoke test packaged app
+        shell: pwsh
+        run: |
+          $exe = "out/package/SignalLessRelay/SignalLessRelay.exe"
+          if (!(Test-Path $exe)) { throw "jpackage did not create $exe" }
+
+          $help = & $exe --help 2>&1 | Out-String
+          if ($help -notmatch "Usage: relay-desktop") {
+            throw "packaged --help did not print usage: $help"
+          }
+          if ($help -notmatch "--no-ui") {
+            throw "packaged --help is missing the UI flags: $help"
+          }
+          $version = & $exe --version 2>&1 | Out-String
+          if ($version -notmatch "relay-desktop 0\.3\.0") {
+            throw "packaged version mismatch: $version"
+          }
+
+          $stdout = "out/package/smoke.out.txt"
+          $stderr = "out/package/smoke.err.txt"
+          $proc = Start-Process -FilePath $exe `
+            -ArgumentList @("--no-ui", "--transport", "fake") `
+            -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 6
+          if ($proc.HasExited) {
+            throw "packaged headless smoke exited early: $((Get-Content $stderr -Raw -ErrorAction SilentlyContinue))"
+          }
+          Stop-Process -Id $proc.Id -Force
+          Start-Sleep -Milliseconds 300
+          $startup = (Get-Content $stdout -Raw -ErrorAction SilentlyContinue) +
+            (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+          if ($startup -notmatch "relay core started") {
+            throw "packaged headless smoke never reached the core: $startup"
+          }
+          "packaged smoke ok"
 
       - name: Assemble release folder
         shell: pwsh
         run: |
           $app = "out/package/SignalLessRelay"
           if (!(Test-Path $app)) { throw "jpackage did not create $app" }
+          Remove-Item "out/package/smoke.*.txt" -ErrorAction SilentlyContinue
           Copy-Item helper/* $app -Recurse -Force
           Copy-Item relay-desktop/README.md $app/README.md
+          Copy-Item relay-desktop/UI-PLAN.md $app/UI-PLAN.md
+          Copy-Item relay-desktop/RELEASE-NOTES.md $app/RELEASE-NOTES.md
           Copy-Item relay-desktop/run-relay.cmd $app/run-relay.cmd
           Copy-Item relay-ble-helper/README.md $app/HELPER-README.md
           Compress-Archive -Path "$app/*" -DestinationPath "out/package/SignalLessRelay-windows-x64.zip" -Force
+
+      - name: Check package size
+        shell: pwsh
+        run: |
+          $zip = Get-Item "out/package/SignalLessRelay-windows-x64.zip"
+          $limit = 125MB
+          if ($zip.Length -gt $limit) {
+            throw "zip is $([math]::Round($zip.Length / 1MB, 1)) MB, over the 125 MB budget"
+          }
+          $app = "out/package/SignalLessRelay"
+          $appBytes = (Get-ChildItem $app -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          "app-image=$([math]::Round($appBytes / 1MB, 1)) MB zip=$([math]::Round($zip.Length / 1MB, 1)) MB"
 
       - name: Upload Windows package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -173,7 +225,8 @@ jobs:
           $asset = "out/package/SignalLessRelay-windows-x64.zip"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $asset --title "SignalLess Relay $tag" --notes "Windows x64 relay package. Physical BLE validation is documented in relay-desktop/README.md and remains a manual gate."
+            gh release create $tag $asset --title "SignalLess Relay $tag" --notes-file relay-desktop/RELEASE-NOTES.md
           } else {
             gh release upload $tag $asset --clobber
+            gh release edit $tag --notes-file relay-desktop/RELEASE-NOTES.md
           }

@@ -7,12 +7,20 @@ with the same TTL, dedup, fragmentation, and identity rules as the Android app.
 It is never packaged into the Android APK. The Windows BLE peripheral role lives
 in the separate `relay-ble-helper` .NET process.
 
+The desktop build also includes a native operator window (Compose Desktop) that
+shows relay state, start/stop controls, live links, counters, and recent events.
+The relay core is still headless infrastructure: `--no-ui` runs exactly as
+before, and the window only observes and drives the same controller. The UI
+design and phase history live in [`UI-PLAN.md`](UI-PLAN.md); that document
+supersedes the earlier "no UI; the relay is a headless daemon" statement.
+
 ## What the relay does not implement
 
 The relay is a network appliance, not a second phone UI. It deliberately has no
-Compose UI, Nostr, geohash, media, Tor, voice, or file transfer surfaces. It does
-retain the portable `FileSharingManager` type through `protocol-core` because the
-core module is shared with the app; no relay CLI path invokes it.
+chat list, message view, web dashboard, Nostr, geohash, media, Tor, voice, or
+file transfer surfaces. It does retain the portable `FileSharingManager` type
+through `protocol-core` because the core module is shared with the app; no relay
+CLI path invokes it.
 
 ## Architecture
 
@@ -41,20 +49,50 @@ must not be copied into an APK.
 
 ## Running the relay
 
-The relay is headless infrastructure. It has no chat list, message view, or
-settings window; the Android app is the only user interface. Run it on an
-always-on Windows machine within BLE range of the phones.
+The relay runs on an always-on Windows machine within BLE range of the phones,
+and the Android app is still the only phone interface.
 
 1. Unzip the release.
 2. Start `SignalLessRelay.exe` (or `run-relay.cmd` to keep the console open
-   after an error). The Windows launcher opens a console for diagnostics; keep
-   it running.
-3. It advertises the SignalLess service and waits for phones to connect.
+   after an error). The Windows launcher opens a console for diagnostics and the
+   operator window; keep both running.
+3. Press **Start** if the relay did not start automatically. It advertises the
+   SignalLess service and waits for phones to connect.
 4. On each phone, open SignalLess and open the Network sheet. The relay appears
    in the **Relay** section (name, address, link direction, signal strength) as
    soon as the phone holds a BLE link to it.
 5. Phones keep their normal scan/connect role. No relay setting is needed on the
    phone; the relay is just another mesh node.
+
+### Operator window
+
+The window is a native Compose Desktop application; it is not a web dashboard
+and it opens no ports. It shows the relay state, the peer ID, live links, the
+traffic counters, and the most recent events.
+
+| Control | Action |
+|---|---|
+| **Start** | Begin advertising. Disabled while starting, advertising, or stopping. |
+| **Stop** | Stop advertising. Disabled unless the relay is starting or advertising. |
+| **Restart** | Stop and start again with the same peer ID. Disabled during a transition. |
+| **Copy ID** | Copy the relay peer ID to the clipboard. |
+| **Open log** | Open the log file. Disabled unless the relay was started with `--log-file`. |
+| **Quit** | Stop the relay, release the helper process, and close the window. |
+| **Clear** | Empty the visible event list. New events still arrive and the buffer stays capped at 200. |
+
+Keyboard: `Ctrl+R` restarts, `Ctrl+Shift+C` copies the peer ID, `Ctrl+Q` quits.
+Disabled controls show a tooltip explaining why they are unavailable. Window
+position and size are remembered in the user preferences and restored on the
+next run after a check against the current monitor layout.
+
+`--demo` opens a window with synthetic state (no identity, engine, or helper)
+for layout work and screenshots; it is a developer option and is not part of the
+help text.
+
+`--no-ui` runs the relay headless with the same controller and the same output
+as earlier releases; use it for Task Scheduler, CI, and servers without a
+display. If `--ui` is requested on a machine with no display, the relay logs
+`no display detected, continuing headless` and keeps running.
 
 By default the relay advertises the service UUID together with the machine name.
 A 128-bit service UUID plus a Bluetooth name does not fit the legacy 31-byte
@@ -242,6 +280,8 @@ relay-desktop [options]
                             (default; makes Windows use extended advertising)
 --no-discoverable           Omit the friendly name; only works if the adapter
                             can start a legacy advertisement
+--ui                        Open the desktop window (default)
+--no-ui                     Run headless; required for Task Scheduler/CI
 --log-file <path>           Append logs to a file
 -h, --help                  Help
 -V, --version               Version
@@ -265,6 +305,19 @@ Kotlin core:
 ./gradlew :relay-desktop:test :relay-desktop:installDist
 ```
 
+Run the window from the source tree:
+
+```sh
+./gradlew :relay-desktop:run --args="--transport fake"
+./gradlew :relay-desktop:run --args="--demo"
+```
+
+Headless smoke test (same path CI uses):
+
+```sh
+./gradlew :relay-desktop:run --args="--no-ui --transport fake"
+```
+
 Windows helper (on Windows):
 
 ```powershell
@@ -285,13 +338,24 @@ The `Desktop relay` GitHub Actions workflow:
 1. runs the Kotlin relay tests on Ubuntu;
 2. builds and publishes the self-contained Windows helper on `windows-latest`;
 3. creates a `jpackage` app image with a trimmed Java runtime and a console
-   launcher (`--win-console`) so diagnostics are visible when started by hand;
-4. copies the helper and `run-relay.cmd` beside the app, then writes a Windows
-   x64 zip.
+   launcher (`--win-console`) so diagnostics are visible when started by hand.
+   The runtime explicitly includes `java.desktop`, `jdk.unsupported`, and
+   `jdk.crypto.ec`; without the last one X25519 key generation fails on first
+   run. The launcher uses `-Xmx512m` because Compose Desktop needs more heap than
+   the old headless relay;
+4. smoke-tests the packaged `--help` and a timed `--no-ui --transport fake`
+   start, copies the helper, README, and `run-relay.cmd` beside the app, and
+   writes a Windows x64 zip;
+5. fails the build if the zip exceeds the 125 MB budget.
 
-A tagged `v*` push attaches the zip to a GitHub Release. Relevant pull requests
-build the same zip and upload it as a workflow artifact, so the packaging path is
-tested before a release. The Android workflow does not build or embed the relay.
+A tagged `relay-v*` push attaches the zip to a GitHub Release and uses the notes
+in [`RELEASE-NOTES.md`](RELEASE-NOTES.md). Relevant pull requests build the same
+zip and upload it as a workflow artifact, so the packaging path is tested before
+a release. The Android workflow does not build or embed the relay.
+
+Current package version: **0.3.0**. The Phase 0 measurements were a 197.0 MB
+app-image and a 93.1 MB zip with the Compose spike; the exact numbers for the
+release build are printed by the workflow size check.
 
 ## Physical test checklist
 
@@ -328,6 +392,21 @@ The MT7921 aborts the legacy advertising instance every time and only settles on
 the extended one. That is expected on this adapter and is not a failure.
 
 ## Troubleshooting
+
+### The window does not open
+
+If the machine has no interactive display, the relay prints
+`no display detected, continuing headless` and runs without a window; that is
+expected for Task Scheduler and CI. If the packaged app fails before that check,
+make sure the bundled runtime contains `java.desktop`:
+
+```powershell
+Get-Content .\runtime\release | Select-String "java.desktop|jdk.unsupported|jdk.crypto.ec"
+```
+
+The app-image ships a launcher plus a `runtime` directory, so there is no
+`runtime\bin\java.exe` to query. Without `jdk.crypto.ec`, X25519 key generation
+fails on the first run with `X25519 KeyPairGenerator not available`.
 
 ### `ADVERTISING_FAILED: adapter status was Aborted after 3s`
 
@@ -387,6 +466,9 @@ app implementation and the Android `BluetoothGattServer` documentation.
 
 ## References
 
+- `relay-desktop/UI-PLAN.md` — UX, phases, controls, and budgets
+- `relay-desktop/src/main/kotlin/com/signalless/relay/ui/RelayController.kt`
+- `relay-desktop/src/main/kotlin/com/signalless/relay/ui/compose/RelayApp.kt`
 - `protocol-core/src/main/kotlin/com/signalless/app/protocol/BinaryProtocol.kt`
 - `protocol-core/src/main/kotlin/com/signalless/app/model/IdentityAnnouncement.kt`
 - `protocol-core/src/main/kotlin/com/signalless/app/mesh/FragmentManager.kt`

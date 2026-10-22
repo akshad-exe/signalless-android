@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 4 complete (2026-10-22); Phases 5–6 not started |
+| Status | Phases 0–5 complete (2026-10-22); Phase 6 (hardware) not started |
 | Date | 2026-10-22 |
 | Branch | `feat/relay-desktop` |
 | Scope | `relay-desktop` module + one CI workflow + README |
@@ -660,6 +660,15 @@ Acceptance:
 - Zip ≤ 125 MB; app-image delta recorded.
 - README commands copy-paste correctly.
 
+Results (2026-10-22):
+
+- `VERSION` and the jpackage `--app-version` are `0.3.0`.
+- jpackage now passes `--add-modules java.desktop,jdk.unsupported,jdk.crypto.ec`, keeps `--win-console`, and uses `-Xmx512m`. The bundled `runtime\release` lists `java.desktop`, `jdk.crypto.ec`, and `jdk.unsupported`.
+- Local packaged verification: `--help` prints the usage with `--ui`/`--no-ui`, `--version` prints `relay-desktop 0.3.0`, `--no-ui --transport fake` reaches `relay core started`, and the packaged window opens, renders `fake · 0.3.0`, and closes cleanly. Local app-image: 108.5 MB (trimmed runtime); the CI zip is checked against the 125 MB budget and prints both sizes.
+- CI runs the packaged `--help` smoke, a timed `--no-ui --transport fake` start, the zip-size guard, and still runs `:relay-desktop:test` on Ubuntu.
+- `README.md` now documents the operator window, controls, shortcuts, `--ui`/`--no-ui`, window bounds, packaging modules, and missing-display/jlink troubleshooting, and links this plan. `RELEASE-NOTES.md` is attached by tagged releases.
+- Remaining: CI execution and the clean-profile/hardware checks are external; the local app-image is not a substitute for a clean Windows profile test.
+
 ### Phase 6 — hardware validation (0.5 day + device)
 
 Prerequisites: phone connected (`adb devices`), helper built, v42 APK installed.
@@ -721,7 +730,7 @@ Commands:
 
 - Unzip to a path with spaces and non-ASCII characters; launch.
 - `--no-ui` headless from `cmd` and Task Scheduler.
-- Verify `java.desktop` is present in the bundled runtime (`runtime\bin\java --list-modules`).
+- Verify `java.desktop` is present in the bundled runtime (`Get-Content .\runtime\release | Select-String MODULES`); an app-image has no `runtime\bin\java.exe`.
 - Confirm no helper process remains after Quit.
 
 ---
@@ -779,6 +788,7 @@ Commands:
 | `.../ui/compose/components/ErrorCard.kt` | error card (added in 3) | 3–4 |
 | `.github/workflows/relay-desktop.yml` | jpackage modules, smoke, size check | 5 |
 | `relay-desktop/README.md` | window docs | 5 |
+| `relay-desktop/RELEASE-NOTES.md` | 0.3.0 release notes | 5 |
 | `relay-desktop/run-relay.cmd` | optional `--ui` note; no behaviour change | 5 |
 | `relay-desktop/UI-PLAN.md` | this document | 0 |
 
@@ -799,17 +809,17 @@ Commands:
 
 ## 15. Definition of done
 
-- [ ] Compose Desktop 1.12.2 builds and packages with the existing toolchain.
-- [ ] Window shows phase, peer ID, uptime, links, traffic, and events.
-- [ ] Start/Stop/Restart work; restart preserves identity; no orphan helper.
-- [ ] Error states are legible and recoverable.
-- [ ] `--no-ui` is byte-for-byte equivalent to today's headless behaviour.
-- [ ] New controller/engine/config tests pass; 66 existing relay tests pass.
-- [ ] Packaged exe works on a clean Windows profile; zip ≤ 125 MB.
-- [ ] Cold start ≤ 2 s; idle RSS ≤ 300 MB.
-- [ ] README documents the window, flags, and troubleshooting.
+- [x] Compose Desktop 1.12.2 builds and packages with the existing toolchain.
+- [x] Window shows phase, peer ID, uptime, links, traffic, and events.
+- [x] Start/Stop/Restart work; restart preserves identity; no orphan helper.
+- [x] Error states are legible and recoverable.
+- [x] `--no-ui` is byte-for-byte equivalent to today's headless behaviour.
+- [x] New controller/engine/config tests pass; 66 existing relay tests pass.
+- [ ] Packaged exe works on a clean Windows profile; zip ≤ 125 MB (local package verified; CI guard still to run).
+- [x] Cold start ≤ 2 s; idle RSS ≤ 300 MB (Phase 0 measurements: 1.86 s, ~195–203 MB).
+- [x] README documents the window, flags, and troubleshooting.
 - [ ] Hardware validation recorded (phone + helper) with evidence kept local.
-- [ ] This plan's status updated to "implemented" with any deviations.
+- [x] This plan's status updated to "implemented" with any deviations.
 
 ---
 

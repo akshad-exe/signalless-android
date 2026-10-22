@@ -3,7 +3,8 @@ setlocal
 cd /d "%~dp0"
 
 rem Interactive launcher: keep the console open so a startup error is readable.
-rem For Task Scheduler / unattended use, run SignalLessRelay.exe directly.
+rem The relay window opens alongside this console. For headless Task Scheduler /
+rem unattended use, run SignalLessRelay.exe --no-ui directly.
 SignalLessRelay.exe --log-file "%~dp0relay.log" %*
 set "EXITCODE=%ERRORLEVEL%"
 
