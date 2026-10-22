@@ -152,6 +152,7 @@ jobs:
           if (!(Test-Path $app)) { throw "jpackage did not create $app" }
           Copy-Item helper/* $app -Recurse -Force
           Copy-Item relay-desktop/README.md $app/README.md
+          Copy-Item relay-desktop/run-relay.cmd $app/run-relay.cmd
           Copy-Item relay-ble-helper/README.md $app/HELPER-README.md
           Compress-Archive -Path "$app/*" -DestinationPath "out/package/SignalLessRelay-windows-x64.zip" -Force
 

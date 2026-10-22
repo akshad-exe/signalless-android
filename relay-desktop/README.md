@@ -46,16 +46,64 @@ settings window; the Android app is the only user interface. Run it on an
 always-on Windows machine within BLE range of the phones.
 
 1. Unzip the release.
-2. Start `SignalLessRelay.exe`. The Windows launcher opens a console for
-   diagnostics; keep it running.
+2. Start `SignalLessRelay.exe` (or `run-relay.cmd` to keep the console open
+   after an error). The Windows launcher opens a console for diagnostics; keep
+   it running.
 3. It advertises the SignalLess service and waits for phones to connect.
-4. On each phone, open SignalLess. The relay appears in People under the
-   configured nickname (default `SignalLessRelay`) after its signed `ANNOUNCE`.
+4. On each phone, open SignalLess and open the Network sheet. The relay appears
+   in the **Relay** section (name, address, link direction, signal strength) as
+   soon as the phone holds a BLE link to it.
 5. Phones keep their normal scan/connect role. No relay setting is needed on the
-   phone; the relay is just another mesh peer.
+   phone; the relay is just another mesh node.
+
+By default the relay advertises the service UUID together with the machine name.
+A 128-bit service UUID plus a Bluetooth name does not fit the legacy 31-byte
+advertisement payload, so Windows abandons the legacy instance and advertises
+with BLE 5 extended advertising instead (up to 254 bytes per packet). The status
+therefore passes through `Aborted` before settling on `Started`; the helper waits
+for the settled state and only fails if advertising never comes up.
+
+Phones must scan with extended advertising enabled. The Android app does this
+(`ScanSettings.setLegacy(false)`); a legacy-only scan never reports the relay.
+Use `--no-discoverable` only for adapters that cannot start an extended
+advertisement — some adapters accept that request but never transmit it.
 
 For unattended startup, use Task Scheduler and pass `--log-file <path>`. The
 console is only a diagnostic view; closing it stops the relay.
+
+### What the phone shows
+
+The Network sheet separates identity from connectivity:
+
+- **People** lists chat peers. Infrastructure nodes are kept out of it.
+- **Relay** lists live BLE links to nodes that advertise
+  `PeerCapabilities.NONE`. Each row shows the nickname, the BLE address, the
+  link direction (`outgoing` / `incoming`) and a signal meter. Rows exist only
+  while the link is up, so the list empties when the relay stops or leaves
+  range.
+
+The relay still sends a signed `ANNOUNCE`, so phones learn its nickname and
+public keys. The announcement says *who* the node is; the Relay section says
+whether it is reachable *right now*. App builds before 2.0.4-lab did not
+classify capabilities, so they also showed the relay under People.
+
+### BLE roles: who connects to whom
+
+BLE has two independent role pairs:
+
+- **Advertiser / peripheral**: the relay advertises the SignalLess service;
+  phones scan for it.
+- **GATT client and server**: the side that opens the connection is the client;
+  the side that hosts the service is the server. A phone runs *both* — it is a
+  client when it dials a peer or the relay, and a server when another phone
+  dials it.
+
+The relay is server-only: it advertises and accepts, and never scans. The phone
+is therefore always the GATT client on a relay link, and the Relay row says
+`outgoing`. The `connected to our server` line in the app log describes a
+different link — another phone dialling this phone's own GATT service. It is
+normal mesh behavior and has nothing to do with a cloud server; there is no
+cloud server in this path at all.
 
 ### How a message crosses the relay
 
@@ -190,6 +238,10 @@ relay-desktop [options]
 --nickname <name>           Announcement nickname (max 15 characters)
 --announce-interval <sec>   Refresh interval (1-3600)
 --advertise-service-data    Experimental 8-byte peer-ID service data
+--discoverable              Include the friendly name in advertising
+                            (default; makes Windows use extended advertising)
+--no-discoverable           Omit the friendly name; only works if the adapter
+                            can start a legacy advertisement
 --log-file <path>           Append logs to a file
 -h, --help                  Help
 -V, --version               Version
@@ -234,7 +286,8 @@ The `Desktop relay` GitHub Actions workflow:
 2. builds and publishes the self-contained Windows helper on `windows-latest`;
 3. creates a `jpackage` app image with a trimmed Java runtime and a console
    launcher (`--win-console`) so diagnostics are visible when started by hand;
-4. copies the helper beside the app and writes a Windows x64 zip.
+4. copies the helper and `run-relay.cmd` beside the app, then writes a Windows
+   x64 zip.
 
 A tagged `v*` push attaches the zip to a GitHub Release. Relevant pull requests
 build the same zip and upload it as a workflow artifact, so the packaging path is
@@ -247,7 +300,9 @@ adapter that reports LE peripheral support and two phones on the same build:
 
 1. Start the helper with `--ipc` and check the `ready` line.
 2. Confirm the phone sees the relay service UUID and connects.
-3. Confirm a signed `ANNOUNCE` appears in People with the configured nickname.
+3. Confirm a signed `ANNOUNCE` appears in the Relay section of the Network sheet
+   with the configured nickname, and that the relay does not appear under People
+   as a chat peer.
 4. Send a broadcast from phone A and receive it on phone B through the relay.
 5. Disconnect phone B, send a unicast from A, reconnect B, and confirm delivery.
 6. Send a payload larger than the negotiated notification size and confirm
@@ -259,6 +314,59 @@ adapter that reports LE peripheral support and two phones on the same build:
 
 Record the adapter model, Windows build, phone builds, and pass/fail results
 locally. Do not publish raw logs or device identifiers.
+
+### Validated configuration (October 2026)
+
+| Component | Value |
+|---|---|
+| Adapter | MediaTek MT7921 (USB `VID_13D3&PID_3567`, driver 1.3.17.168) |
+| Phone | vivo V2130, Android 14 |
+| App | SignalLess 2.0.4-lab (versionCode 41) |
+| Result | `advertising settled status=Started`; phone connected with MTU 517 and a 514-byte notification size; signed `ANNOUNCE` relayed; 0 transport errors |
+
+The MT7921 aborts the legacy advertising instance every time and only settles on
+the extended one. That is expected on this adapter and is not a failure.
+
+## Troubleshooting
+
+### `ADVERTISING_FAILED: adapter status was Aborted after 3s`
+
+Another process already owns the advertising instance. Windows aborts the
+second request, so a second relay cannot start while the first one is running —
+including a leftover helper from an earlier run. Check for one:
+
+```powershell
+Get-Process SignalLessRelayBleHelper -ErrorAction SilentlyContinue
+```
+
+Close that console (or `Stop-Process -Name SignalLessRelayBleHelper -Force`) and
+start the relay again. A phone connection never causes this; only another
+advertising instance does.
+
+### The phone scans but never sees the relay
+
+- The app must scan with extended advertising enabled. Builds from 2.0.3-lab
+  onwards do (`ScanSettings.setLegacy(false)`); a legacy-only scan cannot see the
+  35-byte advertisement.
+- Check the helper output for `advertising settled status=Started`, and the
+  `ready` line for `le=true peripheral=true`.
+- If the adapter cannot start an extended advertisement, try `--no-discoverable`
+  (21-byte legacy payload). Some adapters, including the MT7921, accept that
+  request but never transmit it.
+
+### nRF Connect reports `Error 62 (0x3E)`
+
+Windows rotates its random resolvable private address periodically. nRF Connect
+caches the old address, so the connect attempt targets a stale entry. The
+SignalLess app scans fresh each time and connects to the current address; forget
+the cached device in nRF Connect and rescan. This is not a hardware limit.
+
+### The relay disappears from the Relay section
+
+The section lists live links only. Android drops BLE links when the app is
+backgrounded or the OS power-manages the radio; the relay keeps advertising and
+the phone reconnects. Watch the relay console for `link up` and `link down`
+lines to confirm the cycle.
 
 ## Linux
 

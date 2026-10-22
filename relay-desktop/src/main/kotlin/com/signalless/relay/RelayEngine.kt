@@ -41,6 +41,7 @@ class RelayEngine(
     private val clock: () -> Long = System::currentTimeMillis,
     private val fragmentSendDelayMs: Long = DEFAULT_FRAGMENT_DELAY_MS,
     private val pendingStore: PendingPacketStore = PendingPacketStore(),
+    private val notice: (String) -> Unit = {},
 ) {
     private val myPeerId: String = requireNotNull(RelayLinkRegistry.normalizePeerId(myPeerId)) {
         "myPeerId must be 16 hex characters"
@@ -140,6 +141,7 @@ class RelayEngine(
                     "link ${event.linkId} up mtu=${event.mtu} " +
                         "maxNotification=${event.maxNotificationSize}",
                 )
+                notice("link up link=${event.linkId} mtu=${event.mtu}")
 
                 val link = links.link(event.linkId) ?: return
                 if (identity != null) {
@@ -151,6 +153,7 @@ class RelayEngine(
             is RelayTransportEvent.LinkDown -> {
                 links.remove(event.linkId)
                 SLog.i(TAG, "link ${event.linkId} down reason=${event.reason}")
+                notice("link down link=${event.linkId} reason=${event.reason}")
             }
 
             is RelayTransportEvent.Bytes -> handleFrame(event.linkId, event.data)
@@ -158,6 +161,7 @@ class RelayEngine(
             is RelayTransportEvent.Error -> {
                 counters.transportErrors.incrementAndGet()
                 SLog.e(TAG, "transport error ${event.code}: ${event.message}")
+                notice("transport error ${event.code}: ${event.message}")
             }
         }
     }

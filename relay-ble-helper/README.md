@@ -108,25 +108,33 @@ queue returns `tx_result` with `ok=false` and `error` set to `TX_QUEUE_FULL`.
 
 ## Advertising modes
 
-The default is the shipping layout: **service UUID only**, connectable and
-discoverable, with no service data.
+The relay starts the helper with `--discoverable`: **service UUID + machine
+name**, connectable, with no service data.
+
+A 128-bit service UUID plus a name is about 35 bytes, which exceeds the legacy
+31-byte limit. Windows does not truncate it: it aborts the legacy instance and
+re-advertises with BLE 5 extended advertising, which the adapter reports as
+`Started` a moment later. The helper treats the abort as a retry signal and
+waits up to three seconds for the settled status; it fails only if advertising
+never starts. `--no-discoverable` (21 bytes, legacy) is only a fallback for
+adapters that cannot advertise in extended mode — on some of them, including the
+MT7921, that request is accepted but never transmitted.
 
 ```powershell
-# Default: service UUID list only
+# Default: service UUID list plus machine name (extended advertising)
 dotnet run --project relay-ble-helper/RelayBleHelper.csproj
 
 # Try the 8-byte service-data experiment
 dotnet run --project relay-ble-helper/RelayBleHelper.csproj -- `
   --service-data 0011223344556677
 
-# Test whether the friendly name is consuming the advertisement budget
+# Fallback for adapters without extended advertising support
 dotnet run --project relay-ble-helper/RelayBleHelper.csproj -- --no-discoverable
 ```
 
 The service-data flag is experimental. A 128-bit service-data AD structure and
-a 128-bit service UUID list cannot both fit in the legacy 31-byte
-advertisement. If enabling it removes the UUID from Android's
-`ScanRecord.serviceUuids`, keep the flag off.
+a 128-bit service UUID list do not both fit in a legacy 31-byte advertisement;
+on extended advertising they do fit.
 
 `StartedWithoutAllAdvertisementData` means Windows accepted the request but
 dropped some data. It does **not** prove the UUID survived. The phone scan is
@@ -161,8 +169,8 @@ Run this on the Windows machine, with the phone unlocked and awake.
 
 - [ ] Adapter reports `le=true peripheral=true`.
 - [ ] `GattServiceProvider.CreateAsync` succeeds and the helper logs `ready`.
-- [ ] `AdvertisementStatus` is `Started` (not `Aborted` or
-      `StartedWithoutAllAdvertisementData`).
+- [ ] `AdvertisementStatus` settles on `Started` (a transient `Aborted` before
+      the extended retry is expected); not stuck on `Created`.
 - [ ] The phone sees the relay in its scan.
 - [ ] Android's `ScanRecord.serviceUuids` contains
       `F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C`.
@@ -188,7 +196,7 @@ adapter, advertisement bytes, CCCD behavior, MTU, notifications, or reconnects.
 | `PERIPHERAL_UNSUPPORTED` | The adapter cannot advertise as a peripheral. |
 | `CENTRAL_UNSUPPORTED` | The adapter cannot scan for the `--scan` mode. |
 | `GATT_CREATE_FAILED` | Service/characteristic creation failed, or the API is absent. |
-| `ADVERTISING_FAILED` | `StartAdvertising` threw or the OS reported `Aborted`. |
+| `ADVERTISING_FAILED` | `StartAdvertising` threw, or advertising never settled after the extended retry. If the status stays `Aborted`, another process is probably already advertising — Windows allows only one advertising instance per radio. |
 | `ADVERTISING_DEGRADED` | The OS accepted advertising but dropped data. Check the UUID on the phone. |
 | `LINK_LIMIT` | The local link cap was reached; Windows may still refuse the connection. |
 | `TX_QUEUE_FULL` | The per-link writer queue is full; the phone is not draining notifications. |

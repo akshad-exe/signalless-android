@@ -189,6 +189,10 @@ class PowerManager private constructor(context: Context) : LifecycleEventObserve
         val current = profile.value
         val builder = ScanSettings.Builder()
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            // The Windows relay advertises over BLE 5 extended advertising,
+            // because its payload does not fit a legacy 31-byte packet.
+            // A legacy-only scan never reports those packets.
+            .setLegacy(false)
 
         when (current.mode) {
             PowerMode.PERFORMANCE -> builder

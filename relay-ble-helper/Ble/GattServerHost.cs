@@ -152,7 +152,7 @@ internal static class GattServerHost
                 output);
             try
             {
-                server.StartAdvertising();
+                await server.StartAdvertisingAsync();
             }
             catch
             {
@@ -163,7 +163,7 @@ internal static class GattServerHost
             return server;
         }
 
-        private void StartAdvertising()
+        private async Task StartAdvertisingAsync()
         {
             var hasServiceData = _options.ServiceData is not null;
             var parameters = new GattServiceProviderAdvertisingParameters
@@ -186,17 +186,32 @@ internal static class GattServerHost
                 throw new HelperException("ADVERTISING_FAILED", ex.GetType().Name);
             }
 
+            // A legacy advertisement is limited to 31 bytes. When the request
+            // does not fit, Windows aborts that instance and retries with
+            // extended advertising, so the first status can be Aborted even
+            // though advertising does start. Poll until the status settles
+            // instead of trusting the value returned by StartAdvertising.
             var status = _provider.AdvertisementStatus;
             Log.Info(
-                $"advertising discoverable={_options.Discoverable.ToString().ToLowerInvariant()} " +
+                $"advertising request discoverable={_options.Discoverable.ToString().ToLowerInvariant()} " +
                 $"connectable=true serviceData={hasServiceData.ToString().ToLowerInvariant()} " +
                 $"status={status}");
 
-            _output.Advertising(status.ToString().ToLowerInvariant(), hasServiceData, null);
-
-            if (status == GattServiceProviderAdvertisementStatus.Aborted)
+            var deadline = DateTime.UtcNow + AdvertisingSettleTimeout;
+            while (!IsAdvertising(status) && DateTime.UtcNow < deadline)
             {
-                throw new HelperException("ADVERTISING_FAILED", "adapter returned Aborted");
+                await Task.Delay(AdvertisingPollInterval);
+                status = _provider.AdvertisementStatus;
+            }
+
+            Log.Info($"advertising settled status={status}");
+            _output.Advertising(StateName(status), hasServiceData, null);
+
+            if (!IsAdvertising(status))
+            {
+                throw new HelperException(
+                    "ADVERTISING_FAILED",
+                    $"adapter status was {status} after {AdvertisingSettleTimeout.TotalSeconds:0}s");
             }
 
             if (status == GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData)
@@ -207,32 +222,53 @@ internal static class GattServerHost
             }
         }
 
+        private static readonly TimeSpan AdvertisingSettleTimeout = TimeSpan.FromSeconds(3);
+
+        private static readonly TimeSpan AdvertisingPollInterval = TimeSpan.FromMilliseconds(100);
+
+        private static bool IsAdvertising(GattServiceProviderAdvertisementStatus status) =>
+            status is GattServiceProviderAdvertisementStatus.Started
+                or GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData;
+
+        private static string StateName(GattServiceProviderAdvertisementStatus status) => status switch
+        {
+            GattServiceProviderAdvertisementStatus.Created => "created",
+            GattServiceProviderAdvertisementStatus.Started => "started",
+            GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData => "degraded",
+            GattServiceProviderAdvertisementStatus.Stopped => "stopped",
+            GattServiceProviderAdvertisementStatus.Aborted => "aborted",
+            _ => status.ToString().ToLowerInvariant(),
+        };
+
         private void OnAdvertisementStatusChanged(
             GattServiceProvider sender,
             GattServiceProviderAdvertisementStatusChangedEventArgs args)
         {
             Log.Info($"advertising state={args.Status} error={args.Error}");
 
-            if (args.Status == GattServiceProviderAdvertisementStatus.Started)
+            switch (args.Status)
             {
-                _output.Advertising("started", _options.ServiceData is not null, args.Error.ToString());
-            }
-            else if (args.Status == GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData)
-            {
-                Log.Warn(
-                    "ADVERTISING_DEGRADED: service data may have displaced the " +
-                    "service UUID; turn the experimental flag off");
-                _output.Advertising("degraded", _options.ServiceData is not null, args.Error.ToString());
-            }
-            else if (args.Status == GattServiceProviderAdvertisementStatus.Aborted)
-            {
-                Log.Error($"ADVERTISING_FAILED: {args.Error}");
-                _output.Advertising("aborted", _options.ServiceData is not null, args.Error.ToString());
-                _exit.TrySetResult(2);
-            }
-            else
-            {
-                _output.Advertising("stopped", _options.ServiceData is not null, args.Error.ToString());
+                case GattServiceProviderAdvertisementStatus.Started:
+                    _output.Advertising("started", _options.ServiceData is not null, args.Error.ToString());
+                    break;
+                case GattServiceProviderAdvertisementStatus.StartedWithoutAllAdvertisementData:
+                    Log.Warn(
+                        "ADVERTISING_DEGRADED: service data may have displaced the " +
+                        "service UUID; turn the experimental flag off");
+                    _output.Advertising("degraded", _options.ServiceData is not null, args.Error.ToString());
+                    break;
+                case GattServiceProviderAdvertisementStatus.Aborted:
+                    // Not fatal: this is the legacy instance failing while
+                    // extended advertising is being started. StartAdvertisingAsync
+                    // decides whether advertising actually came up.
+                    Log.Warn(
+                        $"advertising legacy instance aborted error={args.Error}; " +
+                        "waiting for the extended retry");
+                    _output.Advertising("retrying", _options.ServiceData is not null, args.Error.ToString());
+                    break;
+                default:
+                    _output.Advertising(StateName(args.Status), _options.ServiceData is not null, args.Error.ToString());
+                    break;
             }
         }
 

@@ -51,7 +51,9 @@ class HelperProcessTransportTest {
         }
 
         withTimeout(5_000) {
-            while (events.none { it is RelayTransportEvent.LinkUp }) {
+            while (events.none { it is RelayTransportEvent.LinkUp } ||
+                events.none { it is RelayTransportEvent.Bytes }
+            ) {
                 kotlinx.coroutines.delay(10)
             }
         }

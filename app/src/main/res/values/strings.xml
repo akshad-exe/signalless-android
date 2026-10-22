@@ -21,6 +21,14 @@
     <string name="channels">Channels</string>
     <string name="online_users">Online Users</string>
     <string name="no_one_connected">No one connected</string>
+    <string name="relay_count_title">Relay (%1$d)</string>
+    <string name="relay_section_subtitle">Extends the mesh over Bluetooth LE</string>
+    <string name="no_relay_connected">No relay connected</string>
+    <string name="no_relay_hint">Start the desktop relay on a computer within range.</string>
+    <string name="relay_unnamed">SignalLess relay</string>
+    <string name="relay_link_client">outgoing</string>
+    <string name="relay_link_server">incoming</string>
+    <string name="relay_signal_dbm">%1$d dBm</string>
     <string name="emergency_clear_hint">Triple tap to clear all data</string>
     <string name="your_network">Network</string>
     

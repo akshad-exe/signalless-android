@@ -35,6 +35,10 @@ Options:
   --nickname <name>           Announcement nickname (max 15 characters)
   --announce-interval <sec>   Refresh interval while connected (1-3600)
   --advertise-service-data    Experimental 8-byte peer-ID service data
+  --discoverable              Include the friendly name in advertising
+                              (default; makes Windows use extended advertising)
+  --no-discoverable           Omit the friendly name; only works if the
+                              adapter can start a legacy advertisement)
   --log-file <path>           Write logs to this file (default: stdout only)
   -h, --help                  Show this help
   -V, --version               Show the version
@@ -112,6 +116,7 @@ private fun runRelay(config: RelayConfig): Int {
         identity = identity,
         announcementNickname = config.nickname,
         announceIntervalMs = config.announceIntervalSeconds * 1_000L,
+        notice = { line -> println(line) },
     )
 
     return try {
@@ -163,6 +168,9 @@ private fun createTransport(
             )
             if (config.advertiseServiceData) {
                 command += listOf("--service-data", identity.peerId)
+            }
+            if (isWindows()) {
+                command += if (config.discoverable) "--discoverable" else "--no-discoverable"
             }
             HelperProcessTransport(
                 command = command,

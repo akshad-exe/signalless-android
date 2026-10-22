@@ -30,8 +30,11 @@ android {
         applicationId = "com.signalless.app"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // Defaults match the repo's development build. Release tooling can
+        // override them with -Psignalless.versionCode / -Psignalless.versionName
+        // so a locally signed APK can be installed over a published build.
+        versionCode = providers.gradleProperty("signalless.versionCode").getOrElse("1").toInt()
+        versionName = providers.gradleProperty("signalless.versionName").getOrElse("0.1.0")
         buildConfigField(
             "String",
             "GITHUB_RELEASE_CERT_SHA256",

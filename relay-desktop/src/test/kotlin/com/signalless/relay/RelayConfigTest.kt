@@ -1,7 +1,9 @@
 package com.signalless.relay
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RelayConfigTest {
@@ -13,6 +15,13 @@ class RelayConfigTest {
         assertEquals(7, config.ttl)
         assertEquals(TransportMode.AUTO, config.transport)
         assertNull(config.logFile)
+        assertTrue(config.discoverable)
+    }
+
+    @Test
+    fun `parses discoverable advertising flags`() {
+        assertTrue(RelayConfig.parse(listOf("--discoverable")).discoverable)
+        assertFalse(RelayConfig.parse(listOf("--no-discoverable")).discoverable)
     }
 
     @Test

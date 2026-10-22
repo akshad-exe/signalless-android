@@ -26,6 +26,7 @@ data class RelayConfig(
     val nickname: String = DEFAULT_NICKNAME,
     val announceIntervalSeconds: Long = DEFAULT_ANNOUNCE_INTERVAL_SECONDS,
     val advertiseServiceData: Boolean = false,
+    val discoverable: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_MAX_PEERS: Int = 7
@@ -54,6 +55,7 @@ data class RelayConfig(
             var nickname = DEFAULT_NICKNAME
             var announceInterval = DEFAULT_ANNOUNCE_INTERVAL_SECONDS
             var advertiseServiceData = false
+            var discoverable = true
 
             var index = 0
             while (index < args.size) {
@@ -85,6 +87,8 @@ data class RelayConfig(
                     }
                     "--reset-identity" -> resetIdentity = true
                     "--advertise-service-data" -> advertiseServiceData = true
+                    "--discoverable" -> discoverable = true
+                    "--no-discoverable" -> discoverable = false
                     else -> throw CliException("unknown option: $option")
                 }
             }
@@ -100,6 +104,7 @@ data class RelayConfig(
                 nickname = nickname,
                 announceIntervalSeconds = announceInterval,
                 advertiseServiceData = advertiseServiceData,
+                discoverable = discoverable,
             )
         }
 
