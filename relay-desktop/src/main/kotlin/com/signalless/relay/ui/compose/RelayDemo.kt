@@ -27,6 +27,10 @@ internal class DemoRelayState(version: String, startedAt: Long = System.currentT
         _state.update { it.copy(nowMs = now) }
     }
 
+    fun clearEvents() {
+        _state.update { it.copy(events = emptyList()) }
+    }
+
     private fun initialState(version: String, now: Long): RelayUiState {
         val events = listOf(
             demoEvent(now - 510_000L, RelayEventKind.LINK_DOWN, "link down l9 reason=session_closed"),
@@ -97,6 +101,7 @@ fun runDemoApp(version: String) {
         val actions = remember(demo) {
             RelayActions(
                 onCopyId = { copyToClipboard(demo.state.value.peerId) },
+                onClearEvents = demo::clearEvents,
                 onQuit = { exitApplication() },
             )
         }

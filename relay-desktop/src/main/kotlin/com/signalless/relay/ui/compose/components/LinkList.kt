@@ -153,17 +153,11 @@ private fun EmptyLinks(modifier: Modifier, compact: Boolean) {
                         ),
                     )
                 }
-                .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 18.dp),
+                .padding(horizontal = 16.dp, vertical = if (compact) 8.dp else 12.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "No phones connected yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = RelayColors.Muted,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = "Start the relay and keep the phone within a few metres.",
+                text = "No phones yet — start the relay and stay nearby.",
                 style = MaterialTheme.typography.bodySmall,
                 color = RelayColors.Muted,
             )

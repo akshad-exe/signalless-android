@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 3 complete (2026-10-22); Phases 4–6 not started |
+| Status | Phase 4 complete (2026-10-22); Phases 5–6 not started |
 | Date | 2026-10-22 |
 | Branch | `feat/relay-desktop` |
 | Scope | `relay-desktop` module + one CI workflow + README |
@@ -629,6 +629,15 @@ Acceptance:
 - RSS after 30 min ≤ 300 MB; no growth trend.
 - All shortcuts work; nothing traps focus.
 
+Results (2026-10-22):
+
+- Window geometry is persisted as physical pixels in `Preferences` (Windows: `HKCU\Software\JavaSoft\Prefs\com\signalless\relay\ui\compose`) and restored through `WindowState`/`WindowPosition` using the current density, so a 100% saved rectangle follows the window at other scales. Saved geometry is sanitised against the monitor list; off-screen or undersized rectangles are discarded and oversized or edge rectangles are clamped. Verified: move to `200,120,700,800`, close, relaunch → restored `200,120,700,800`.
+- The event list only follows new entries when it is already at the bottom; manual scrolling up keeps the position. `Clear` empties the view while the controller ring buffer keeps appending and stays bounded at 200. At 520×620 with the error card visible, the empty links card still shows its message and at least one event row remains visible.
+- The error card enters and exits with `AnimatedContent`; the header and footer use `animateContentSize` for phase transitions. All animation specs are finite.
+- Keyboard: `Ctrl+R` restarts (only when `RelayControlPolicy` allows it), `Ctrl+Shift+C` copies the peer ID, `Ctrl+Q` quits. Footer controls that are disabled show a tooltip with the reason; `Open log` is always present and disabled with a tooltip when `--log-file` is not set.
+- `:relay-desktop:test` — 97 tests, 0 failures.
+- Remaining manual checks: native 125/150/200% Windows scaling, keyboard-only navigation and tooltip hover (this session cannot inject mouse/keyboard input), interactive click behaviour, and the 30-minute RSS soak (Phase 6 step 8 covers it with phones).
+
 ### Phase 5 — packaging, CI, and docs (0.5 day)
 
 Tasks:
@@ -765,6 +774,9 @@ Commands:
 | `relay-desktop/src/test/.../RelayControllerTest.kt` | new | 1 |
 | `relay-desktop/src/test/.../RelayEngineTest.kt` | readiness cases | 1 |
 | `relay-desktop/src/test/.../RelayConfigTest.kt` | UI flag cases | 1 |
+| `.../ui/compose/WindowBounds.kt` | window geometry persistence | 4 |
+| `.../src/test/.../ui/compose/WindowBoundsTest.kt` | sanitising cases | 4 |
+| `.../ui/compose/components/ErrorCard.kt` | error card (added in 3) | 3–4 |
 | `.github/workflows/relay-desktop.yml` | jpackage modules, smoke, size check | 5 |
 | `relay-desktop/README.md` | window docs | 5 |
 | `relay-desktop/run-relay.cmd` | optional `--ui` note; no behaviour change | 5 |

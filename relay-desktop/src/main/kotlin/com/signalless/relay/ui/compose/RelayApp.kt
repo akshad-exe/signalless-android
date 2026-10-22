@@ -1,13 +1,24 @@
 package com.signalless.relay.ui.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.signalless.relay.ui.RelayController
@@ -33,6 +44,7 @@ fun runRelayApp(controller: RelayController, logFile: Path?) {
                     copyToClipboard(controller.state.value.peerId)
                 },
                 onOpenLog = logFile?.let { path -> { openLogFile(path) } },
+                onClearEvents = controller::clearEvents,
                 onQuit = {
                     controller.shutdown()
                     exitApplication()
@@ -58,18 +70,31 @@ internal fun RelayWindow(
     demo: Boolean,
     actions: RelayActions,
 ) {
-    val windowState = rememberWindowState(width = 600.dp, height = 760.dp)
+    val density = LocalDensity.current.density
+    val savedBounds = remember { WindowBoundsStore.load() }
+    val windowState = rememberWindowState(
+        position = savedBounds?.let { bounds ->
+            WindowPosition((bounds.x / density).dp, (bounds.y / density).dp)
+        } ?: WindowPosition(Alignment.Center),
+        size = savedBounds?.let { bounds ->
+            DpSize((bounds.width / density).dp, (bounds.height / density).dp)
+        } ?: DpSize(600.dp, 760.dp),
+    )
     Window(
         onCloseRequest = actions.onQuit,
         state = windowState,
         title = if (demo) "SignalLess Relay (demo)" else "SignalLess Relay",
+        onPreviewKeyEvent = { event -> handleShortcut(event, state, actions) },
     ) {
-        val density = LocalDensity.current.density
         LaunchedEffect(density) {
             window.minimumSize = Dimension(
                 (MIN_WIDTH_DP * density).roundToInt(),
                 (MIN_HEIGHT_DP * density).roundToInt(),
             )
+        }
+
+        DisposableEffect(window) {
+            onDispose { WindowBoundsStore.save(window.bounds) }
         }
 
         RelayTheme {
@@ -79,6 +104,37 @@ internal fun RelayWindow(
                 actions = actions,
             )
         }
+    }
+}
+
+private fun handleShortcut(
+    event: KeyEvent,
+    state: RelayUiState,
+    actions: RelayActions,
+): Boolean {
+    if (event.type != KeyEventType.KeyDown || !event.isCtrlPressed) {
+        return false
+    }
+    return when {
+        event.key == Key.Q -> {
+            actions.onQuit()
+            true
+        }
+        event.key == Key.C && event.isShiftPressed -> {
+            val copy = actions.onCopyId
+            copy?.invoke()
+            copy != null
+        }
+        event.key == Key.R && !event.isShiftPressed -> {
+            val restart = actions.onRestart
+            if (restart != null && RelayControlPolicy.canRestart(state.phase)) {
+                restart()
+                true
+            } else {
+                false
+            }
+        }
+        else -> false
     }
 }
 

@@ -180,6 +180,22 @@ class RelayControllerTest {
     }
 
     @Test
+    fun `clear events empties the log but keeps new lifecycle entries`() {
+        val (relay, _) = newController()
+        relay.start()
+        awaitState("advertising") { it.phase == RelayPhase.ADVERTISING }
+        assertTrue(relay.state.value.events.isNotEmpty())
+
+        relay.clearEvents()
+        assertTrue(relay.state.value.events.isEmpty())
+
+        relay.stop()
+        val stopped = awaitState("stopped") { it.phase == RelayPhase.STOPPED }
+        assertTrue(stopped.events.any { it.text == "stopping" })
+        assertTrue(stopped.events.any { it.text == "stopped" })
+    }
+
+    @Test
     fun `shutdown is idempotent and rejects further commands`() {
         val (relay, transports) = newController()
         relay.start()

@@ -14,6 +14,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -43,8 +48,21 @@ fun EventLog(
     }
 
     val listState = rememberLazyListState()
+    var stickToBottom by remember { mutableStateOf(true) }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
+            .collect { (scrolling, canScrollForward) ->
+                if (scrolling) {
+                    stickToBottom = !canScrollForward
+                }
+            }
+    }
+
     LaunchedEffect(events.size) {
-        listState.scrollToItem(events.lastIndex)
+        if (stickToBottom) {
+            listState.scrollToItem(events.lastIndex)
+        }
     }
 
     LazyColumn(

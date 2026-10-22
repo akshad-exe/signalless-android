@@ -128,6 +128,17 @@ class RelayController(
     }
 
     /**
+     * Clears the visible event list. Logging continues and the ring buffer
+     * still caps future entries at its configured limit.
+     */
+    fun clearEvents() {
+        synchronized(lock) {
+            events.clear()
+            publishLocked()
+        }
+    }
+
+    /**
      * Stops and starts in one serialized operation.
      *
      * Ignored while a transition is already in flight, which makes double
