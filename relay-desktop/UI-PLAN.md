@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0 complete (2026-10-22); Phases 1–6 not started |
+| Status | Phase 1 complete (2026-10-22); Phases 2–6 not started |
 | Date | 2026-10-22 |
 | Branch | `feat/relay-desktop` |
 | Scope | `relay-desktop` module + one CI workflow + README |
@@ -517,9 +517,36 @@ Tasks:
 
 Acceptance:
 
-- New tests pass; all 66 existing relay tests pass.
+- New tests pass; all existing relay tests pass.
 - `--no-ui --transport fake` behaves exactly as before.
 - `--ui --transport fake` still headless in this phase (temporary, documented in the commit).
+
+#### Phase 1 results (2026-10-22)
+
+Status: complete.
+
+- `RelayUiState.kt` adds `RelayPhase`, `RelayEventKind`, `RelayLinkView`, `RelayEvent`, and the immutable state snapshot.
+- `RelayController.kt` owns a daemon single-thread lifecycle dispatcher, a 500 ms refresh, a 200-entry event ring buffer, and a `transportFactory` test seam. Start/stop/restart/shutdown are serialized; link events come from the engine's `notice` callback so short-lived links are not lost between ticks; the snapshot supplies link views and stable first-seen timestamps.
+- `RelayEngine` exposes `isTransportReady()` / `lastTransportError()`; both reset on start, and stop clears them.
+- `RelayConfig.ui` now defaults to true; `--no-ui` forces headless. `GraphicsEnvironment.isHeadless()` forces headless with one stderr notice.
+- `Main` is split into `runUi` / `runHeadless`. For this phase `runUi` prints `relay-desktop: desktop window is not available yet; continuing headless` and calls `runHeadless`; Phase 2 replaces that branch with the Compose window.
+- The throwaway Compose smoke window from Phase 0 was deleted to avoid dead code; Compose dependencies remain for Phase 2.
+
+Verification:
+
+| Check | Result |
+|---|---|
+| `:relay-desktop:test` | 80 tests, 0 failures (3 consecutive reruns) |
+| `--no-ui --transport fake` | identical output lines and exit path |
+| `--ui --transport fake` | one notice line, then the same headless output |
+| `-Djava.awt.headless=true` (default UI) | `no display detected, continuing headless` |
+| `--help` | shows `--ui` default and `--no-ui` for CI/Task Scheduler |
+
+Notes:
+
+- The controller test suite covers start→advertising, stop, restart identity/links, failure+retry, double restart, both ring-buffer limits, stable first-seen timestamps, transport-error banners, and idempotent shutdown.
+- Link-down events keep the engine's reason text (`link down link=… reason=…`); Phase 2 can format this for display without changing the state model.
+- `shutdown()` waits up to 3 seconds for the helper stop path, then releases the lifecycle dispatcher. Closing the window must call it before `exitApplication()` in Phase 2.
 
 ### Phase 2 — read-only window (1 day)
 

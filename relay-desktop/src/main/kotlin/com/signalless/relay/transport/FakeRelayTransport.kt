@@ -81,6 +81,9 @@ class FakeRelayTransport(
     fun linkDown(linkId: String, reason: String = "test"): Boolean =
         emit(RelayTransportEvent.LinkDown(linkId = linkId, reason = reason))
 
+    fun error(code: String, message: String): Boolean =
+        emit(RelayTransportEvent.Error(code = code, message = message))
+
     fun receive(linkId: String, data: ByteArray): Boolean =
         emit(RelayTransportEvent.Bytes(linkId = linkId, data = data.copyOf()))
 

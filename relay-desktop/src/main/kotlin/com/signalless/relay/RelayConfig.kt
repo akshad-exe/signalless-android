@@ -27,7 +27,7 @@ data class RelayConfig(
     val announceIntervalSeconds: Long = DEFAULT_ANNOUNCE_INTERVAL_SECONDS,
     val advertiseServiceData: Boolean = false,
     val discoverable: Boolean = true,
-    val ui: Boolean = false,
+    val ui: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_MAX_PEERS: Int = 7
@@ -57,7 +57,7 @@ data class RelayConfig(
             var announceInterval = DEFAULT_ANNOUNCE_INTERVAL_SECONDS
             var advertiseServiceData = false
             var discoverable = true
-            var ui = false
+            var ui = true
 
             var index = 0
             while (index < args.size) {

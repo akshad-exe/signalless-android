@@ -58,6 +58,12 @@ class RelayEngine(
     @Volatile
     private var running: Boolean = false
 
+    @Volatile
+    private var transportReady: Boolean = false
+
+    @Volatile
+    private var transportError: String? = null
+
     private var eventJob: Job? = null
     private var announceJob: Job? = null
 
@@ -72,6 +78,8 @@ class RelayEngine(
 
     suspend fun start() {
         check(!running) { "relay engine is already running" }
+        transportReady = false
+        transportError = null
         transport.start().getOrThrow()
         running = true
         eventJob = scope.launch {
@@ -96,6 +104,8 @@ class RelayEngine(
 
     suspend fun stop() {
         running = false
+        transportReady = false
+        transportError = null
         announceJob?.cancelAndJoin()
         announceJob = null
         eventJob?.cancelAndJoin()
@@ -111,9 +121,17 @@ class RelayEngine(
 
     fun stats(): RelayStats = counters.snapshot()
 
+    /** True after the transport reported `Ready`; cleared by [stop]. */
+    fun isTransportReady(): Boolean = transportReady
+
+    /** Last transport error as `code: message`; cleared on start and stop. */
+    fun lastTransportError(): String? = transportError
+
     private suspend fun handleEvent(event: RelayTransportEvent) {
         when (event) {
             is RelayTransportEvent.Ready -> {
+                transportReady = true
+                transportError = null
                 SLog.i(
                     TAG,
                     "transport ready platform=${event.platform} maxLinks=${event.maxLinks} " +
@@ -160,6 +178,7 @@ class RelayEngine(
 
             is RelayTransportEvent.Error -> {
                 counters.transportErrors.incrementAndGet()
+                transportError = "${event.code}: ${event.message}"
                 SLog.e(TAG, "transport error ${event.code}: ${event.message}")
                 notice("transport error ${event.code}: ${event.message}")
             }
