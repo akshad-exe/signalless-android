@@ -25,6 +25,13 @@ class RelayConfigTest {
     }
 
     @Test
+    fun `parses the ui flags`() {
+        assertFalse(RelayConfig.parse(emptyList()).ui)
+        assertTrue(RelayConfig.parse(listOf("--ui")).ui)
+        assertFalse(RelayConfig.parse(listOf("--ui", "--no-ui")).ui)
+    }
+
+    @Test
     fun `parses every supported option`() {
         val config = RelayConfig.parse(
             listOf(

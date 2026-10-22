@@ -16,6 +16,8 @@ appcompat = "1.7.1"
 # Compose
 compose-bom = "2026.06.01"
 compose-icons-extended = "1.7.8"
+# Compose Multiplatform (desktop relay window; independent of the Android BOM)
+compose-multiplatform = "1.12.2"
 
 # Navigation
 navigation-compose = "2.9.8"
@@ -157,6 +159,7 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-parcelize = { id = "kotlin-parcelize" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 
 [bundles]
 compose = [

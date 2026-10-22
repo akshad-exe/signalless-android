@@ -27,6 +27,7 @@ data class RelayConfig(
     val announceIntervalSeconds: Long = DEFAULT_ANNOUNCE_INTERVAL_SECONDS,
     val advertiseServiceData: Boolean = false,
     val discoverable: Boolean = true,
+    val ui: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_PEERS: Int = 7
@@ -56,6 +57,7 @@ data class RelayConfig(
             var announceInterval = DEFAULT_ANNOUNCE_INTERVAL_SECONDS
             var advertiseServiceData = false
             var discoverable = true
+            var ui = false
 
             var index = 0
             while (index < args.size) {
@@ -89,6 +91,8 @@ data class RelayConfig(
                     "--advertise-service-data" -> advertiseServiceData = true
                     "--discoverable" -> discoverable = true
                     "--no-discoverable" -> discoverable = false
+                    "--ui" -> ui = true
+                    "--no-ui" -> ui = false
                     else -> throw CliException("unknown option: $option")
                 }
             }
@@ -105,6 +109,7 @@ data class RelayConfig(
                 announceIntervalSeconds = announceInterval,
                 advertiseServiceData = advertiseServiceData,
                 discoverable = discoverable,
+                ui = ui,
             )
         }
 

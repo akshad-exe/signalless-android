@@ -6,6 +6,7 @@ import com.signalless.relay.identity.RelayIdentityStore
 import com.signalless.relay.transport.FakeRelayTransport
 import com.signalless.relay.transport.HelperProcessTransport
 import com.signalless.relay.transport.RelayTransport
+import com.signalless.relay.ui.compose.runUiSmoke
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,8 @@ Options:
                               (default; makes Windows use extended advertising)
   --no-discoverable           Omit the friendly name; only works if the
                               adapter can start a legacy advertisement)
+  --ui                        Open the desktop window (Phase 0 smoke; default off)
+  --no-ui                     Run headless (current default)
   --log-file <path>           Write logs to this file (default: stdout only)
   -h, --help                  Show this help
   -V, --version               Show the version
@@ -86,6 +89,16 @@ private fun runRelay(config: RelayConfig): Int {
     }
 
     val logSink = installLogSink(config.logFile)
+
+    // Phase 0: the window is a smoke test and does not start the engine yet.
+    if (config.ui) {
+        return try {
+            runUiSmoke(config, identity)
+        } finally {
+            logSink?.close()
+        }
+    }
+
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val transport = try {
         createTransport(config, identity, scope)
