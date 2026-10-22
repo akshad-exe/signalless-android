@@ -33,6 +33,12 @@ class RelayConfigTest {
     }
 
     @Test
+    fun `demo is developer-only and off by default`() {
+        assertFalse(RelayConfig.parse(emptyList()).demo)
+        assertTrue(RelayConfig.parse(listOf("--demo")).demo)
+    }
+
+    @Test
     fun `parses every supported option`() {
         val config = RelayConfig.parse(
             listOf(

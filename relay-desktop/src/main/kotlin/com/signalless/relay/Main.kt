@@ -6,6 +6,9 @@ import com.signalless.relay.identity.RelayIdentityStore
 import com.signalless.relay.transport.FakeRelayTransport
 import com.signalless.relay.transport.HelperProcessTransport
 import com.signalless.relay.transport.RelayTransport
+import com.signalless.relay.ui.RelayController
+import com.signalless.relay.ui.compose.runDemoApp
+import com.signalless.relay.ui.compose.runRelayApp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,7 +69,7 @@ internal fun run(args: Array<String>): Int {
 
     return try {
         val config = RelayConfig.parse(args.toList())
-        runRelay(config)
+        if (config.demo) runDemo(config) else runRelay(config)
     } catch (error: CliException) {
         System.err.println("relay-desktop: ${error.message}")
         System.err.println(USAGE)
@@ -102,13 +105,44 @@ private fun runRelay(config: RelayConfig): Int {
 }
 
 /**
- * Phase 1 keeps the window out of the release path until the read-only screen
- * lands in Phase 2. The controller and state model are already testable; this
- * branch only preserves the new "UI by default" contract.
+ * The operator window. The controller starts inside the application scope so
+ * the first frame can render `Starting…`; [RelayController.shutdown] is
+ * idempotent and runs both here and in the window's close handler.
  */
 private fun runUi(config: RelayConfig, identity: RelayIdentity): Int {
-    println("relay-desktop: desktop window is not available yet; continuing headless")
-    return runHeadless(config, identity)
+    val controller = RelayController(
+        config = config,
+        identity = identity,
+        version = VERSION,
+        transportFactory = { scope -> createTransport(config, identity, scope) },
+        eventLogger = { line ->
+            println(line)
+            if (config.logFile != null) {
+                SLog.i("RelayUi", line)
+            }
+        },
+    )
+
+    return try {
+        runRelayApp(controller)
+        0
+    } finally {
+        controller.shutdown()
+    }
+}
+
+/** `--demo` is a developer-only layout aid; it never creates an identity or engine. */
+private fun runDemo(config: RelayConfig): Int {
+    if (!config.ui) {
+        System.err.println("relay-desktop: --demo requires the desktop window; remove --no-ui")
+        return 2
+    }
+    if (GraphicsEnvironment.isHeadless()) {
+        System.err.println("relay-desktop: no display detected; --demo requires a desktop")
+        return 1
+    }
+    runDemoApp(VERSION)
+    return 0
 }
 
 private fun runHeadless(config: RelayConfig, identity: RelayIdentity): Int {

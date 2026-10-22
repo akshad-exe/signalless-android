@@ -152,7 +152,7 @@ class RelayControllerTest {
         }
 
         val state = awaitState("last link event") {
-            it.events.lastOrNull()?.text == "link down link=link-${RelayController.DEFAULT_EVENT_LIMIT} reason=test"
+            it.events.lastOrNull()?.text == "link down link-${RelayController.DEFAULT_EVENT_LIMIT} reason=test"
         }
         assertEquals(RelayController.DEFAULT_EVENT_LIMIT, state.events.size)
     }

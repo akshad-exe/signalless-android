@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 1 complete (2026-10-22); Phases 2–6 not started |
+| Status | Phase 2 complete (2026-10-22); Phases 3–6 not started |
 | Date | 2026-10-22 |
 | Branch | `feat/relay-desktop` |
 | Scope | `relay-desktop` module + one CI workflow + README |
@@ -568,6 +568,17 @@ Acceptance:
 - Demo state renders 2 links, counters, and events; no clipping at 125% and 150% Windows scaling.
 - Closing the window returns exit code 0 and leaves no helper process.
 - `--demo` never starts the engine.
+
+Results (2026-10-22):
+
+- Implemented `RelayApp`, `RelayScreen`, theme, formatters, section cards, status header, link list, traffic grid, and event log under `ui/compose/`.
+- The window is 600×760 dp, centred, with a 520×620 dp minimum computed from the current display density. A compact layout (smaller gaps, shorter cards, smaller type) activates below 700 dp of content height so both demo links and a few events remain visible at the minimum size.
+- `--transport fake` renders `Advertising`, `0 / 7`, the dashed empty-links card, zero counters, and the three lifecycle events. `--demo` renders the synthetic state with 2 links, non-zero counters, a `DEMO` badge, and 8 events.
+- Visual smoke tests: 600×760 at 100%, 125%, and 150% (`-Dsun.java2d.uiScale`); 520×620 at 100% and 150%. Both demo link rows fit with MTU/notify details; the event log scrolls.
+- `--demo` requires a display and UI enabled; `--demo --no-ui` exits 2 without touching identity, engine, or helper. `--demo` remains out of `--help` as a developer option.
+- Closing the demo window exits cleanly (exit code 0); the controller path calls `shutdown()` from both `onCloseRequest` and `Main.runUi`'s `finally`.
+- `:relay-desktop:test` — 87 tests, 0 failures.
+- Remaining manual checks: the helper + phone path and native Windows scaling (the `uiScale` property exercises Compose density but is not a substitute for the Phase 6 hardware pass).
 
 ### Phase 3 — controls (0.75 day)
 

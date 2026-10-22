@@ -48,6 +48,7 @@ class RelayController(
     private val tickIntervalMs: Long = DEFAULT_TICK_INTERVAL_MS,
     private val eventLimit: Int = DEFAULT_EVENT_LIMIT,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val eventLogger: (String) -> Unit = {},
 ) {
     init {
         require(tickIntervalMs > 0) { "tickIntervalMs must be positive" }
@@ -106,7 +107,7 @@ class RelayController(
             phase = RelayPhase.STARTING
             error = null
             advertisingSinceMs = null
-            appendLocked(RelayEventKind.LIFECYCLE, "starting session")
+            appendLocked(RelayEventKind.LIFECYCLE, "relay starting")
             publishLocked()
         }
         lifecycleScope.launch { startSession() }
@@ -153,7 +154,7 @@ class RelayController(
                 if (phase != RelayPhase.STARTING) {
                     return@launch
                 }
-                appendLocked(RelayEventKind.LIFECYCLE, "starting session")
+                appendLocked(RelayEventKind.LIFECYCLE, "relay starting")
                 publishLocked()
             }
             startSession()
@@ -366,7 +367,7 @@ class RelayController(
             if (shuttingDown.get()) {
                 return
             }
-            appendLocked(kind, line)
+            appendLocked(kind, line.replaceFirst("link=", ""))
             publishLocked()
         }
     }
@@ -386,6 +387,7 @@ class RelayController(
         while (events.size > eventLimit) {
             events.removeFirst()
         }
+        eventLogger(text)
     }
 
     private fun buildState(): RelayUiState = RelayUiState(

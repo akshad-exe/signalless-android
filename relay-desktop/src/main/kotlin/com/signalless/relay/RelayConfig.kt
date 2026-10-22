@@ -28,6 +28,7 @@ data class RelayConfig(
     val advertiseServiceData: Boolean = false,
     val discoverable: Boolean = true,
     val ui: Boolean = true,
+    val demo: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_PEERS: Int = 7
@@ -58,6 +59,7 @@ data class RelayConfig(
             var advertiseServiceData = false
             var discoverable = true
             var ui = true
+            var demo = false
 
             var index = 0
             while (index < args.size) {
@@ -93,6 +95,7 @@ data class RelayConfig(
                     "--no-discoverable" -> discoverable = false
                     "--ui" -> ui = true
                     "--no-ui" -> ui = false
+                    "--demo" -> demo = true
                     else -> throw CliException("unknown option: $option")
                 }
             }
@@ -110,6 +113,7 @@ data class RelayConfig(
                 advertiseServiceData = advertiseServiceData,
                 discoverable = discoverable,
                 ui = ui,
+                demo = demo,
             )
         }
 
