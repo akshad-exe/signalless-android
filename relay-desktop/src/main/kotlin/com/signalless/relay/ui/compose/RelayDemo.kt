@@ -94,8 +94,11 @@ fun runDemoApp(version: String) {
             }
         }
 
-        val actions = remember {
-            RelayActions(onQuit = { exitApplication() })
+        val actions = remember(demo) {
+            RelayActions(
+                onCopyId = { copyToClipboard(demo.state.value.peerId) },
+                onQuit = { exitApplication() },
+            )
         }
         RelayWindow(
             state = state,

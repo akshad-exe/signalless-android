@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 2 complete (2026-10-22); Phases 3–6 not started |
+| Status | Phase 3 complete (2026-10-22); Phases 4–6 not started |
 | Date | 2026-10-22 |
 | Branch | `feat/relay-desktop` |
 | Scope | `relay-desktop` module + one CI workflow + README |
@@ -599,6 +599,17 @@ Acceptance:
 - No orphan `SignalLessRelayBleHelper.exe` after Quit or window close.
 - Restart preserves the relay peer ID (phone sees the same relay).
 - Starting while another advertiser owns the radio shows `ADVERTISING_FAILED` in the error card, and Retry works after the other process exits.
+
+Results (2026-10-22):
+
+- Start/Stop/Restart, Copy ID, Open log, and Quit are wired to `RelayController`. Button enablement lives in `RelayControlPolicy`; Start and Stop show `Starting…`/`Stopping…` while disabled.
+- Restart is disabled during `STARTING` even though §7.7 lists it: the controller deliberately ignores restart during a transition, and a button that silently does nothing is worse than one that waits for the session to settle.
+- `ErrorCard` renders the controller's failure message as selectable monospace text with `Try again` and, when `--log-file` is set, `Open log`. A missing helper produced `Needs attention`, the failure card, enabled Start/Restart, disabled Stop, and no start loop.
+- Copy ID uses the AWT system clipboard because composition locals are not available at the application root. Open log uses `Desktop.open` and creates an empty log first when the first write has not happened yet.
+- The empty-links card no longer enforces a 100 dp child inside a shorter card; its text now fits at 520×620. When the error card is visible at the minimum size, the empty links card shortens so at least one event row remains visible.
+- Helper path: advertised with `--transport helper` for 10 s, then closing the window exited Java and left no `SignalLessRelayBleHelper.exe`.
+- Controller tests cover lifecycle transitions, retry after failure, restart identity, double-command guards, and event-logger text including formatted link notices. `:relay-desktop:test` — 91 tests, 0 failures.
+- Remaining manual checks: control clicks and clipboard/log-open contents (this session could not inject mouse or keyboard input; actions are direct controller references), stop/start with a phone, restart 10×, and native Windows scaling. Phone-dependent checks stay in Phase 6.
 
 ### Phase 4 — polish and resilience (0.75 day)
 

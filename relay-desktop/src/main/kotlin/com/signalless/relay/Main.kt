@@ -124,7 +124,7 @@ private fun runUi(config: RelayConfig, identity: RelayIdentity): Int {
     )
 
     return try {
-        runRelayApp(controller)
+        runRelayApp(controller, config.logFile)
         0
     } finally {
         controller.shutdown()

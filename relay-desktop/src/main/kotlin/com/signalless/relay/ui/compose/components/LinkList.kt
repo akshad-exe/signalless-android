@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -43,7 +43,7 @@ fun LinkList(
     compact: Boolean = false,
 ) {
     if (links.isEmpty()) {
-        EmptyLinks(modifier)
+        EmptyLinks(modifier, compact)
         return
     }
 
@@ -132,7 +132,7 @@ private fun LinkBadge(bound: Boolean) {
 }
 
 @Composable
-private fun EmptyLinks(modifier: Modifier) {
+private fun EmptyLinks(modifier: Modifier, compact: Boolean) {
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
@@ -140,7 +140,7 @@ private fun EmptyLinks(modifier: Modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 100.dp)
+                .fillMaxHeight()
                 .drawBehind {
                     drawRoundRect(
                         color = RelayColors.Border,
@@ -153,7 +153,7 @@ private fun EmptyLinks(modifier: Modifier) {
                         ),
                     )
                 }
-                .padding(horizontal = 16.dp, vertical = 18.dp),
+                .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 18.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(

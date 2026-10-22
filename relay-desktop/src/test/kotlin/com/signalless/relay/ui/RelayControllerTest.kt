@@ -14,6 +14,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CopyOnWriteArrayList
 
 class RelayControllerTest {
     private val identity = RelayIdentity.generate()
@@ -158,6 +159,27 @@ class RelayControllerTest {
     }
 
     @Test
+    fun `event logger mirrors lifecycle and formatted link events`() {
+        val logged = CopyOnWriteArrayList<String>()
+        val (relay, transports) = newController(eventLogger = { logged += it })
+        relay.start()
+        awaitState("advertising") { it.phase == RelayPhase.ADVERTISING }
+
+        transports.single().linkUp("link-1")
+        awaitState("link event") { state ->
+            state.events.any { it.text.startsWith("link up link-1") }
+        }
+        relay.stop()
+        awaitState("stopped") { it.phase == RelayPhase.STOPPED }
+
+        assertTrue(logged.contains("relay starting"))
+        assertTrue(logged.contains("advertising ready"))
+        assertTrue(logged.any { it.startsWith("link up link-1") })
+        assertTrue(logged.contains("stopping"))
+        assertTrue(logged.contains("stopped"))
+    }
+
+    @Test
     fun `shutdown is idempotent and rejects further commands`() {
         val (relay, transports) = newController()
         relay.start()
@@ -207,6 +229,7 @@ class RelayControllerTest {
 
     private fun newController(
         eventLimit: Int = RelayController.DEFAULT_EVENT_LIMIT,
+        eventLogger: (String) -> Unit = {},
         configure: (Int, FakeRelayTransport) -> Unit = { _, _ -> },
     ): Pair<RelayController, MutableList<FakeRelayTransport>> {
         val transports = mutableListOf<FakeRelayTransport>()
@@ -222,6 +245,7 @@ class RelayControllerTest {
             },
             tickIntervalMs = 20L,
             eventLimit = eventLimit,
+            eventLogger = eventLogger,
         )
         controller = relay
         return relay to transports

@@ -4,12 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.signalless.relay.ui.RelayPhase
 import com.signalless.relay.ui.RelayUiState
+import com.signalless.relay.ui.compose.components.ErrorCard
 import com.signalless.relay.ui.compose.components.EventLog
 import com.signalless.relay.ui.compose.components.LinkList
 import com.signalless.relay.ui.compose.components.SectionCard
@@ -70,10 +71,26 @@ fun RelayScreen(
                 compact = compact,
             )
 
+            val error = state.error
+            if (error != null) {
+                Spacer(Modifier.height(if (compact) 6.dp else gap))
+                ErrorCard(
+                    message = error,
+                    onRetry = actions.onStart,
+                    onOpenLog = actions.onOpenLog,
+                    compact = compact,
+                )
+            }
+
             Spacer(Modifier.height(gap))
 
             val linksHeight = if (state.links.isEmpty()) {
-                if (compact) 112.dp else 132.dp
+                when {
+                    error != null && compact -> 100.dp
+                    error != null -> 116.dp
+                    compact -> 112.dp
+                    else -> 132.dp
+                }
             } else {
                 if (compact) 162.dp else 172.dp
             }
@@ -145,9 +162,11 @@ fun RelayScreen(
 
 @Composable
 private fun Footer(state: RelayUiState, actions: RelayActions, compact: Boolean) {
-    val canStart = state.phase == RelayPhase.STOPPED || state.phase == RelayPhase.FAILED
-    val canStop = state.phase == RelayPhase.STARTING || state.phase == RelayPhase.ADVERTISING
-    val canRestart = state.phase != RelayPhase.STOPPING
+    val canStart = RelayControlPolicy.canStart(state.phase)
+    val canStop = RelayControlPolicy.canStop(state.phase)
+    val canRestart = RelayControlPolicy.canRestart(state.phase)
+    val controlHeight = if (compact) 30.dp else 34.dp
+    val controlPadding = PaddingValues(horizontal = if (compact) 10.dp else 16.dp)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -158,25 +177,34 @@ private fun Footer(state: RelayUiState, actions: RelayActions, compact: Boolean)
             Button(
                 onClick = onStart,
                 enabled = canStart,
-                modifier = Modifier.heightIn(min = 34.dp),
+                modifier = Modifier.height(controlHeight),
+                contentPadding = controlPadding,
             ) {
-                Text("Start", fontSize = 12.sp)
+                Text(
+                    text = if (state.phase == RelayPhase.STARTING) "Starting…" else "Start",
+                    fontSize = 12.sp,
+                )
             }
         }
         actions.onStop?.let { onStop ->
             OutlinedButton(
                 onClick = onStop,
                 enabled = canStop,
-                modifier = Modifier.heightIn(min = 34.dp),
+                modifier = Modifier.height(controlHeight),
+                contentPadding = controlPadding,
             ) {
-                Text("Stop", fontSize = 12.sp)
+                Text(
+                    text = if (state.phase == RelayPhase.STOPPING) "Stopping…" else "Stop",
+                    fontSize = 12.sp,
+                )
             }
         }
         actions.onRestart?.let { onRestart ->
             OutlinedButton(
                 onClick = onRestart,
                 enabled = canRestart,
-                modifier = Modifier.heightIn(min = 34.dp),
+                modifier = Modifier.height(controlHeight),
+                contentPadding = controlPadding,
             ) {
                 Text("Restart", fontSize = 12.sp)
             }
@@ -184,7 +212,8 @@ private fun Footer(state: RelayUiState, actions: RelayActions, compact: Boolean)
         actions.onOpenLog?.let { onOpenLog ->
             OutlinedButton(
                 onClick = onOpenLog,
-                modifier = Modifier.heightIn(min = 34.dp),
+                modifier = Modifier.height(controlHeight),
+                contentPadding = controlPadding,
             ) {
                 Text("Open log", fontSize = 12.sp)
             }
@@ -192,7 +221,8 @@ private fun Footer(state: RelayUiState, actions: RelayActions, compact: Boolean)
         Spacer(Modifier.weight(1f))
         OutlinedButton(
             onClick = actions.onQuit,
-            modifier = Modifier.heightIn(min = 34.dp),
+            modifier = Modifier.height(controlHeight),
+            contentPadding = controlPadding,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = RelayColors.Muted),
         ) {
             Text("Quit", style = MaterialTheme.typography.bodyMedium, fontSize = 12.sp)

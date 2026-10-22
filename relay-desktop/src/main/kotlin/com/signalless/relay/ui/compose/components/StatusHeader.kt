@@ -18,6 +18,11 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +38,7 @@ import com.signalless.relay.ui.RelayPhase
 import com.signalless.relay.ui.RelayUiState
 import com.signalless.relay.ui.compose.RelayColors
 import com.signalless.relay.ui.compose.RelayFormat
+import kotlinx.coroutines.delay
 
 @Composable
 fun StatusHeader(
@@ -42,6 +48,14 @@ fun StatusHeader(
     compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1_500L)
+            copied = false
+        }
+    }
+
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatusPill(state.phase)
@@ -76,7 +90,13 @@ fun StatusHeader(
             }
             if (onCopyId != null) {
                 Spacer(Modifier.width(10.dp))
-                HeaderAction(label = "Copy ID", onClick = onCopyId)
+                HeaderAction(
+                    label = if (copied) "Copied" else "Copy ID",
+                    onClick = {
+                        onCopyId()
+                        copied = true
+                    },
+                )
             }
             Spacer(Modifier.weight(1f))
             Text(
