@@ -337,16 +337,18 @@ The `Desktop relay` GitHub Actions workflow:
 
 1. runs the Kotlin relay tests on Ubuntu;
 2. builds and publishes the self-contained Windows helper on `windows-latest`;
-3. creates a `jpackage` app image with a trimmed Java runtime and a console
+3. builds the relay distribution on that same Windows runner, so the Compose
+   dependency pulls the Windows Skiko natives rather than the Linux ones;
+4. creates a `jpackage` app image with a trimmed Java runtime and a console
    launcher (`--win-console`) so diagnostics are visible when started by hand.
    The runtime explicitly includes `java.desktop`, `jdk.unsupported`, and
    `jdk.crypto.ec`; without the last one X25519 key generation fails on first
    run. The launcher uses `-Xmx512m` because Compose Desktop needs more heap than
    the old headless relay;
-4. smoke-tests the packaged `--help` and a timed `--no-ui --transport fake`
+5. smoke-tests the packaged `--help` and a timed `--no-ui --transport fake`
    start, copies the helper, README, and `run-relay.cmd` beside the app, and
    writes a Windows x64 zip;
-5. fails the build if the zip exceeds the 125 MB budget.
+6. fails the build if the zip exceeds the 125 MB budget.
 
 A tagged `relay-v*` push attaches the zip to a GitHub Release and uses the notes
 in [`RELEASE-NOTES.md`](RELEASE-NOTES.md). Relevant pull requests build the same

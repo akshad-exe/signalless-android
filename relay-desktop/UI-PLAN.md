@@ -665,7 +665,7 @@ Results (2026-10-22):
 - `VERSION` and the jpackage `--app-version` are `0.3.0`.
 - jpackage now passes `--add-modules java.desktop,jdk.unsupported,jdk.crypto.ec`, keeps `--win-console`, and uses `-Xmx512m`. The bundled `runtime\release` lists `java.desktop`, `jdk.crypto.ec`, and `jdk.unsupported`.
 - Local packaged verification: `--help` prints the usage with `--ui`/`--no-ui`, `--version` prints `relay-desktop 0.3.0`, `--no-ui --transport fake` reaches `relay core started`, and the packaged window opens, renders `fake · 0.3.0`, and closes cleanly. Local app-image: 108.5 MB (trimmed runtime); the CI zip is checked against the 125 MB budget and prints both sizes.
-- CI runs the packaged `--help` smoke, a timed `--no-ui --transport fake` start, the zip-size guard, and still runs `:relay-desktop:test` on Ubuntu.
+- CI runs the packaged `--help` smoke, a timed `--no-ui --transport fake` start, the zip-size guard, and still runs `:relay-desktop:test` on Ubuntu. The package job builds the distribution on its own Windows runner and checks for the Windows Skiko native jar; downloading the Ubuntu-built distribution would silently package Linux natives.
 - `README.md` now documents the operator window, controls, shortcuts, `--ui`/`--no-ui`, window bounds, packaging modules, and missing-display/jlink troubleshooting, and links this plan. `RELEASE-NOTES.md` is attached by tagged releases.
 - Remaining: CI execution and the clean-profile/hardware checks are external; the local app-image is not a substitute for a clean Windows profile test.
 
