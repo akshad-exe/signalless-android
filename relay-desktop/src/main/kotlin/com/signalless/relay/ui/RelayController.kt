@@ -226,17 +226,22 @@ class RelayController(
         }
 
         val newSession = Session(engine = engine, scope = sessionScope)
-        synchronized(lock) {
+        val canStart = synchronized(lock) {
             if (shuttingDown.get() || phase != RelayPhase.STARTING) {
-                sessionScope.cancel()
-                return
+                false
+            } else {
+                session = newSession
+                firstSeen.clear()
+                observedErrorCount = 0L
+                links = emptyList()
+                stats = emptyRelayStats()
+                publishLocked()
+                true
             }
-            session = newSession
-            firstSeen.clear()
-            observedErrorCount = 0L
-            links = emptyList()
-            stats = emptyRelayStats()
-            publishLocked()
+        }
+        if (!canStart) {
+            cleanup(newSession)
+            return
         }
 
         try {
@@ -260,10 +265,23 @@ class RelayController(
             return
         }
 
-        synchronized(lock) {
+        val keepSession = synchronized(lock) {
             if (session === newSession && phase == RelayPhase.STARTING) {
                 appendLocked(RelayEventKind.LIFECYCLE, "session started; waiting for the radio")
                 publishLocked()
+                true
+            } else {
+                false
+            }
+        }
+        if (!keepSession) {
+            // Stop may have completed while the engine was starting. Stop the
+            // freshly started transport instead of leaking its helper process.
+            cleanup(newSession)
+            synchronized(lock) {
+                if (session === newSession) {
+                    session = null
+                }
             }
         }
     }
