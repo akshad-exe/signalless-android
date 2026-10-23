@@ -6,7 +6,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.signalless.app.noise.NoiseEncryptionService
+import com.signalless.android.noise.NoiseEncryptionService
 import com.signalless.app.noise.NoiseHandshakeProcessingResult
 import com.signalless.app.noise.AuthenticatedNoiseSession
 import com.signalless.app.noise.NoiseDecryptionResult

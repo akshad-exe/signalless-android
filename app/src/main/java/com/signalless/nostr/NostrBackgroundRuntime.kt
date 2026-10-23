@@ -6,7 +6,7 @@ import com.signalless.app.geohash.ChannelID
 import com.signalless.app.geohash.GeohashNostrPrivacyPolicy
 import com.signalless.app.geohash.LiveLocationPrivacyGate
 import com.signalless.app.geohash.LocationChannelManager
-import com.signalless.app.mesh.PowerManager
+import com.signalless.android.mesh.PowerManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

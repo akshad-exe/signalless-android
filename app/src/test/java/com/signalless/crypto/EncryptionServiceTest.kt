@@ -2,7 +2,7 @@ package com.signalless.app.crypto
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.signalless.app.noise.NoiseEncryptionService
+import com.signalless.android.noise.NoiseEncryptionService
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before

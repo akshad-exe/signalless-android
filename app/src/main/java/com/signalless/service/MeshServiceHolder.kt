@@ -1,11 +1,11 @@
 package com.signalless.app.service
 
 import android.content.Context
-import com.signalless.app.mesh.BluetoothMeshService
-import com.signalless.app.mesh.UnifiedMeshService
+import com.signalless.android.mesh.BluetoothMeshService
+import com.signalless.android.mesh.UnifiedMeshService
 import com.signalless.app.model.RoutedPacket
 import com.signalless.app.protocol.SignalLessPacket
-import com.signalless.app.sync.GossipSyncManager
+import com.signalless.android.sync.GossipSyncManager
 
 /**
  * Process-wide holder to share a single BluetoothMeshService instance

@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.rotate
 import com.signalless.app.ui.theme.SignalLessFontFamily
-import com.signalless.app.mesh.BluetoothMeshService
+import com.signalless.android.mesh.BluetoothMeshService
 import com.signalless.app.services.meshgraph.MeshGraphService
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.toArgb
