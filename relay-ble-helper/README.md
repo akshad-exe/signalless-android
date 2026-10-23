@@ -117,8 +117,8 @@ re-advertises with BLE 5 extended advertising, which the adapter reports as
 `Started` a moment later. The helper treats the abort as a retry signal and
 waits up to three seconds for the settled status; it fails only if advertising
 never starts. `--no-discoverable` (21 bytes, legacy) is only a fallback for
-adapters that cannot advertise in extended mode — on some of them, including the
-MT7921, that request is accepted but never transmitted.
+adapters that cannot advertise in extended mode — on some adapters, that request
+is accepted but never transmitted.
 
 ```powershell
 # Default: service UUID list plus machine name (extended advertising)

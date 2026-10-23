@@ -42,9 +42,11 @@ The relay is currently a headless CLI daemon:
 - `Main.kt` builds identity, transport, and `RelayEngine`, then blocks on `awaitCancellation()`.
 - `relay-ble-helper` (.NET/WinRT) owns advertising and GATT; the JVM only speaks framed IPC.
 - Packaging is `jpackage --type app-image` → zip, launched by `run-relay.cmd`.
-- 66 relay unit tests pass; hardware validation has been done on the MT7921 + vivo V2130.
+- Relay unit tests pass; physical validation is recorded locally and is not
+  included in this repository.
 
-The original relay document (`bitchat-android/docs/relay-desktop-plan.md`, D: copy) says:
+The original relay document (`bitchat-android/docs/relay-desktop-plan.md`, a
+local-only copy) says:
 
 > **Never in `relay-desktop`:** Compose UI, Nostr, geohash, media capture, Tor, voice, file transfer...
 > The relay is a headless daemon; `protocol-core` is its only shared code.
@@ -53,7 +55,7 @@ and:
 
 > **Not included:** Compose Desktop chat UI. The desktop build is a daemon, not a client.
 
-That decision was about a **chat client**. This plan adds an **operator console**: status, links, counters, and start/stop. It does not add messaging, pairing, contacts, or a client UI. The "headless" line is superseded only to the extent described here. The D: copy is read-only and remains historical; this document is the current decision record.
+That decision was about a **chat client**. This plan adds an **operator console**: status, links, counters, and start/stop. It does not add messaging, pairing, contacts, or a client UI. The "headless" line is superseded only to the extent described here. The local-only copy remains historical; this document is the current decision record.
 
 `--no-ui` preserves the old headless behaviour exactly, so existing deployments and Task Scheduler entries keep working.
 
