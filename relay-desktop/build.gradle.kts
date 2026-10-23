@@ -32,8 +32,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.gson)
 
-    // Desktop-only Compose runtime. A plain JVM target is enough; no KMP plugin is used.
-    implementation(compose.desktop.currentOs)
+    // The relay window ships only for Windows. Pin the Windows runtime instead
+    // of `currentOs` so Linux CI resolves the same locked artifacts as the
+    // Windows package job instead of silently switching to the Linux native.
+    implementation(compose.desktop.windows_x64)
     implementation(compose.material3)
 
     testImplementation(libs.junit)
