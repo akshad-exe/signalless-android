@@ -59,8 +59,8 @@ and the Android app is still the only phone interface.
 3. Press **Start** if the relay did not start automatically. It advertises the
    SignalLess service and waits for phones to connect.
 4. On each phone, open SignalLess and open the Network sheet. The relay appears
-   in the **Relay** section (name, address, link direction, signal strength) as
-   soon as the phone holds a BLE link to it.
+   in the **Relay** section (name, short peer ID, link direction, and signal
+   strength) as soon as the phone holds a BLE link to it.
 5. Phones keep their normal scan/connect role. No relay setting is needed on the
    phone; the relay is just another mesh node.
 
@@ -115,10 +115,11 @@ The Network sheet separates identity from connectivity:
 
 - **People** lists chat peers. Infrastructure nodes are kept out of it.
 - **Relay** lists live BLE links to nodes that advertise
-  `PeerCapabilities.NONE`. Each row shows the nickname, the BLE address, the
-  link direction (`outgoing` / `incoming`) and a signal meter. Rows exist only
-  while the link is up, so the list empties when the relay stops or leaves
-  range.
+  `PeerCapabilities.NONE`. Each row shows the nickname, a short peer-ID prefix
+  (or `identity pending` until the signed `ANNOUNCE` arrives), the link
+  direction (`outgoing` / `incoming`), and a signal meter. Rows exist only while
+  the link is up, so the list empties when the relay stops or leaves range. Raw
+  BLE addresses are never shown or logged.
 
 The relay still sends a signed `ANNOUNCE`, so phones learn its nickname and
 public keys. The announcement says *who* the node is; the Relay section says
@@ -381,17 +382,16 @@ adapter that reports LE peripheral support and two phones on the same build:
 Record the adapter model, Windows build, phone builds, and pass/fail results
 locally. Do not publish raw logs or device identifiers.
 
-### Validated configuration (October 2026)
+### Hardware validation (summary)
 
-| Component | Value |
-|---|---|
-| Adapter | MediaTek MT7921 (USB `VID_13D3&PID_3567`, driver 1.3.17.168) |
-| Phone | vivo V2130, Android 14 |
-| App | SignalLess 2.0.4-lab (versionCode 41) |
-| Result | `advertising settled status=Started`; phone connected with MTU 517 and a 514-byte notification size; signed `ANNOUNCE` relayed; 0 transport errors |
+Physical validation was performed locally on Windows 11 with a BLE 5
+peripheral-capable adapter and an Android phone on the same app build. The
+adapter completed extended advertising with `advertising settled
+status=Started`; the phone connected with MTU 517 and a 514-byte notification
+size; a signed `ANNOUNCE` was relayed with 0 transport errors.
 
-The MT7921 aborts the legacy advertising instance every time and only settles on
-the extended one. That is expected on this adapter and is not a failure.
+Adapter and device identifiers are intentionally omitted. Keep the full test
+record local; do not add it to the repository, a pull request, or a release.
 
 ## Troubleshooting
 
@@ -432,8 +432,8 @@ advertising instance does.
 - Check the helper output for `advertising settled status=Started`, and the
   `ready` line for `le=true peripheral=true`.
 - If the adapter cannot start an extended advertisement, try `--no-discoverable`
-  (21-byte legacy payload). Some adapters, including the MT7921, accept that
-  request but never transmit it.
+  (21-byte legacy payload). Some adapters accept that request but never transmit
+  it.
 
 ### nRF Connect reports `Error 62 (0x3E)`
 

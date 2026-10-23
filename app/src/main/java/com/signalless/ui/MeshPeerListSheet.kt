@@ -47,7 +47,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,7 +87,6 @@ import kotlinx.coroutines.delay
  * desktop relay. These links carry mesh traffic but never show up in People.
  */
 private data class RelayLink(
-    val address: String,
     val isClient: Boolean,
     val rssi: Int?,
     val peerID: String?,
@@ -189,7 +187,6 @@ fun MeshPeerListSheet(
                 service.connectionManager.getConnectedDeviceEntries().map { (address, isClient, rssi) ->
                     val peerID = addressToPeer[address]
                     RelayLink(
-                        address = address,
                         isClient = isClient,
                         rssi = rssi,
                         peerID = peerID,
@@ -202,10 +199,8 @@ fun MeshPeerListSheet(
     }
     val relayLinks = remember(connectedDevices, relayPeerIDs) {
         connectedDevices.filter { link ->
-            val peerID = link.peerID
-            // Unmapped links are usually a relay that has not announced yet;
-            // keep them visible instead of hiding the only infrastructure node.
-            peerID == null || peerID.lowercase() in relayPeerIDs
+            val peerID = link.peerID ?: return@filter false
+            peerID.lowercase() in relayPeerIDs
         }
     }
 
@@ -1067,6 +1062,12 @@ private fun RelayEmptyRow(colorScheme: ColorScheme) {
 private fun RelayRow(relay: RelayLink, colorScheme: ColorScheme) {
     val palette = LocalSignalLessPalette.current
     val name = relay.nickname ?: stringResource(R.string.relay_unnamed)
+    val peerID = relay.peerID
+    val identity = if (peerID != null) {
+        stringResource(R.string.relay_peer_id, peerID.take(8))
+    } else {
+        stringResource(R.string.relay_link_unannounced)
+    }
     // "Outgoing" is the phone dialling the relay (this device is the GATT
     // client); "incoming" is the relay dialling the phone (this device is the
     // GATT server). Both directions are healthy — they are separate links.
@@ -1121,8 +1122,8 @@ private fun RelayRow(relay: RelayLink, colorScheme: ColorScheme) {
             }
             Spacer(Modifier.height(3.dp))
             Text(
-                text = relay.address,
-                fontFamily = FontFamily.Monospace,
+                text = identity,
+                fontFamily = SignalLessFontFamily,
                 fontSize = 11.sp,
                 letterSpacing = 0.2.sp,
                 color = palette.textTertiary,
