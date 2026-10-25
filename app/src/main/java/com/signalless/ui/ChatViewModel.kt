@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
-import com.signalless.app.mesh.BluetoothMeshDelegate
-import com.signalless.app.mesh.BluetoothMeshService
+import com.signalless.android.mesh.BluetoothMeshDelegate
+import com.signalless.android.mesh.BluetoothMeshService
 import com.signalless.app.mesh.MeshService
 import com.signalless.app.service.MeshServiceHolder
 import com.signalless.app.model.SignalLessMessage

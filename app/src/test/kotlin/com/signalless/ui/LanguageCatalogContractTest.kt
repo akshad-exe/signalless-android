@@ -13,8 +13,11 @@ class LanguageCatalogContractTest {
         val shippedLanguageTags = resourcesDirectory
             .listFiles()
             .orEmpty()
-            .filter { it.isDirectory && it.name.startsWith("values-") }
-            .mapNotNull { directory -> directory.name.toLanguageTagOrNull() }
+            .filter { it.isDirectory }
+            .mapNotNull { directory ->
+                // English ships in the default `values/` directory, not `values-en/`.
+                if (directory.name == "values") "en" else directory.name.toLanguageTagOrNull()
+            }
             .toSet()
 
         val configuredLanguageTags = Regex("""android:name="([^"]+)"""")
