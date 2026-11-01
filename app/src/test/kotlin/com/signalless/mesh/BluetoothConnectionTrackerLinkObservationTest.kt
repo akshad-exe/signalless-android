@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import com.signalless.android.mesh.BluetoothConnectionTracker
 
 class BluetoothConnectionTrackerLinkObservationTest {
     private val scope = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())

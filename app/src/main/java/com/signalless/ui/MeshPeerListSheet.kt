@@ -33,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,6 +62,7 @@ import com.signalless.app.favorites.FavoriteRelationship
 import com.signalless.app.favorites.FavoritesPersistenceService
 import com.signalless.app.geohash.ChannelID
 import com.signalless.app.identity.SecureIdentityStateManager
+import com.signalless.app.model.PeerCapabilities
 import com.signalless.app.model.SignalLessMessageType
 import com.signalless.app.ui.theme.BASE_FONT_SIZE
 import com.signalless.app.ui.theme.SignalLessMotion
@@ -79,6 +81,17 @@ import kotlinx.coroutines.delay
  * Sheet components for ChatScreen
  * Extracted from ChatScreen.kt for better organization
  */
+
+/**
+ * A BLE link that is not a chat peer, i.e. an infrastructure node such as the
+ * desktop relay. These links carry mesh traffic but never show up in People.
+ */
+private data class RelayLink(
+    val isClient: Boolean,
+    val rssi: Int?,
+    val peerID: String?,
+    val nickname: String?,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,12 +132,27 @@ fun MeshPeerListSheet(
         conversations
             .flatMapTo(mutableSetOf()) { it.identityAliases }
     }
-    val visibleConnectedPeers = connectedPeers.filterNot { peerID ->
-        val aliases = runCatching {
-            ContactDirectory.aliasesForConversation(peerID)
-        }.getOrDefault(setOf(peerID))
-        aliases.any { it.lowercase() in conversationIdentityAliases }
+    // Infrastructure nodes advertise PeerCapabilities.NONE: they forward mesh
+    // traffic but cannot host a chat. They belong in the Relay section, not in
+    // People, so both lists describe different things instead of duplicating
+    // the same device.
+    val relayPeerIDs = remember(connectedPeers, peerNicknames) {
+        connectedPeers
+            .filter { peerID ->
+                runCatching { viewModel.getMeshPeerInfo(peerID)?.capabilities }
+                    .getOrNull()
+                    ?.let { it == PeerCapabilities.NONE } == true
+            }
+            .mapTo(mutableSetOf()) { it.lowercase() }
     }
+    val visibleConnectedPeers = connectedPeers
+        .filterNot { peerID -> peerID.lowercase() in relayPeerIDs }
+        .filterNot { peerID ->
+            val aliases = runCatching {
+                ContactDirectory.aliasesForConversation(peerID)
+            }.getOrDefault(setOf(peerID))
+            aliases.any { it.lowercase() in conversationIdentityAliases }
+        }
     var pendingConversationDelete by remember {
         mutableStateOf<ConversationSummary?>(null)
     }
@@ -145,6 +173,37 @@ fun MeshPeerListSheet(
     }
     val sheetScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Live BLE links, so infrastructure nodes (the desktop relay) are visible
+    // even though they never become chat peers.
+    var connectedDevices by remember { mutableStateOf<List<RelayLink>>(emptyList()) }
+    LaunchedEffect(isPresented) {
+        if (!isPresented) return@LaunchedEffect
+        while (true) {
+            connectedDevices = runCatching {
+                val service = viewModel.meshService
+                val addressToPeer = service.getDeviceAddressToPeerMapping()
+                val nicknames = service.getPeerNicknames()
+                service.connectionManager.getConnectedDeviceEntries().map { (address, isClient, rssi) ->
+                    val peerID = addressToPeer[address]
+                    RelayLink(
+                        isClient = isClient,
+                        rssi = rssi,
+                        peerID = peerID,
+                        nickname = peerID?.let { nicknames[it] },
+                    )
+                }
+            }.getOrDefault(emptyList())
+            delay(2_000)
+        }
+    }
+    val relayLinks = remember(connectedDevices, relayPeerIDs) {
+        connectedDevices.filter { link ->
+            val peerID = link.peerID ?: return@filter false
+            peerID.lowercase() in relayPeerIDs
+        }
+    }
+
 
     // Bottom sheet state
     val sheetState = rememberModalBottomSheetState(
@@ -446,6 +505,16 @@ fun MeshPeerListSheet(
                                 )
                             }
                         }
+                    }
+
+                    // Infrastructure links: BLE nodes that carry mesh traffic
+                    // but are not chat peers (e.g. the desktop relay).
+                    item(key = "relay_section") {
+                        RelaySection(
+                            relays = relayLinks,
+                            colorScheme = colorScheme,
+                            modifier = Modifier.padding(top = 20.dp),
+                        )
                     }
                 }
 
@@ -894,6 +963,223 @@ fun PeopleSection(
             }
         }
 
+    }
+}
+
+/**
+ * Infrastructure links, i.e. BLE nodes that forward mesh traffic but advertise
+ * [PeerCapabilities.NONE] and therefore never appear in People.
+ *
+ * This is a connection view, not a contact view: it answers "is the relay
+ * reachable right now, over which side of the link, and how strong is the
+ * signal".
+ */
+@Composable
+private fun RelaySection(
+    relays: List<RelayLink>,
+    colorScheme: ColorScheme,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        SheetIconSectionHeader(
+            iconRes = R.drawable.ic_spec_routed,
+            title = stringResource(R.string.relay_count_title, relays.size),
+            subtitle = stringResource(R.string.relay_section_subtitle),
+        )
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AboutHorizontalPadding)
+                .padding(top = 10.dp),
+            color = colorScheme.surface,
+            shape = AboutCardShape
+        ) {
+            Column {
+                if (relays.isEmpty()) {
+                    RelayEmptyRow(colorScheme = colorScheme)
+                } else {
+                    relays.forEachIndexed { index, relay ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = SheetRowDividerInset),
+                                thickness = 0.5.dp,
+                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                        RelayRow(relay = relay, colorScheme = colorScheme)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelayEmptyRow(colorScheme: ColorScheme) {
+    val palette = LocalSignalLessPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SheetRowHorizontal, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(palette.textTertiary.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_spec_routed),
+                contentDescription = null,
+                tint = palette.textTertiary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.no_relay_connected),
+                fontFamily = SignalLessFontFamily,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.no_relay_hint),
+                fontFamily = SignalLessFontFamily,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                color = palette.textTertiary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RelayRow(relay: RelayLink, colorScheme: ColorScheme) {
+    val palette = LocalSignalLessPalette.current
+    val name = relay.nickname ?: stringResource(R.string.relay_unnamed)
+    val peerID = relay.peerID
+    val identity = if (peerID != null) {
+        stringResource(R.string.relay_peer_id, peerID.take(8))
+    } else {
+        stringResource(R.string.relay_link_unannounced)
+    }
+    // "Outgoing" is the phone dialling the relay (this device is the GATT
+    // client); "incoming" is the relay dialling the phone (this device is the
+    // GATT server). Both directions are healthy — they are separate links.
+    val direction = stringResource(
+        if (relay.isClient) R.string.relay_link_client else R.string.relay_link_server
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SheetRowHorizontal, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            colorScheme.primary.copy(alpha = 0.22f),
+                            colorScheme.primary.copy(alpha = 0.07f),
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_spec_bluetooth),
+                contentDescription = null,
+                tint = colorScheme.primary,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name,
+                    fontFamily = SignalLessFontFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(8.dp))
+                SignalLessBadge(text = direction)
+            }
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = identity,
+                fontFamily = SignalLessFontFamily,
+                fontSize = 11.sp,
+                letterSpacing = 0.2.sp,
+                color = palette.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        if (relay.rssi != null) {
+            Spacer(Modifier.width(10.dp))
+            RelaySignalStrength(rssi = relay.rssi, colorScheme = colorScheme)
+        }
+    }
+}
+
+/** Bar heights for the four-step signal meter, shortest first. */
+private val RelaySignalBarHeights = listOf(4.dp, 7.dp, 10.dp, 13.dp)
+
+@Composable
+private fun RelaySignalStrength(rssi: Int, colorScheme: ColorScheme) {
+    val palette = LocalSignalLessPalette.current
+    val activeBars = when {
+        rssi >= -55 -> 4
+        rssi >= -67 -> 3
+        rssi >= -78 -> 2
+        else -> 1
+    }
+
+    Column(horizontalAlignment = Alignment.End) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            RelaySignalBarHeights.forEachIndexed { index, height ->
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(height)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(
+                            if (index < activeBars) {
+                                colorScheme.primary
+                            } else {
+                                palette.textTertiary.copy(alpha = 0.25f)
+                            }
+                        )
+                )
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = stringResource(R.string.relay_signal_dbm, rssi),
+            fontFamily = SignalLessFontFamily,
+            fontSize = 9.sp,
+            color = palette.textTertiary,
+        )
     }
 }
 

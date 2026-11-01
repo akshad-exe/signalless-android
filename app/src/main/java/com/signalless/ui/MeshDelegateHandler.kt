@@ -1,6 +1,6 @@
 package com.signalless.app.ui
 
-import com.signalless.app.mesh.BluetoothMeshDelegate
+import com.signalless.android.mesh.BluetoothMeshDelegate
 import com.signalless.app.ui.NotificationTextUtils
 import com.signalless.app.mesh.MeshService
 import com.signalless.app.model.SignalLessMessage
@@ -70,9 +70,9 @@ class MeshDelegateHandler(
                     }
                 }
             } else if (message.channel != null) {
+                val channel = message.channel
                 // Channel message: AppStateStore is the source of truth for list; only manage unread
-                if (state.getJoinedChannelsValue().contains(message.channel)) {
-                    val channel = message.channel
+                if (channel != null && state.getJoinedChannelsValue().contains(channel)) {
                     val viewingClassic = state.getCurrentChannelValue() == channel
                     val viewingGeohash = try {
                         if (channel.startsWith("geo:")) {

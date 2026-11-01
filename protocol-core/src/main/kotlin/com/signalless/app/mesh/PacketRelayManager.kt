@@ -1,0 +1,224 @@
+package com.signalless.app.mesh
+import com.signalless.app.protocol.MessageType
+
+import com.signalless.app.util.SLog
+import com.signalless.app.model.RoutedPacket
+import com.signalless.app.protocol.SignalLessPacket
+import com.signalless.app.util.toHexString
+import kotlinx.coroutines.*
+import kotlin.random.Random
+
+/**
+ * Centralized packet relay management
+ * 
+ * This class handles all relay decisions and logic for SignalLess packets.
+ * All packets that aren't specifically addressed to us get processed here.
+ */
+class PacketRelayManager(
+    private val myPeerID: String,
+    private val relayEnabled: () -> Boolean = { true }
+) {
+    companion object {
+        private const val TAG = "PacketRelayManager"
+    }
+
+    private fun isRelayEnabled(): Boolean = relayEnabled()
+
+    // Logging moved to BluetoothPacketBroadcaster per actual transmission target
+    
+    // Delegate for callbacks
+    var delegate: PacketRelayManagerDelegate? = null
+    
+    // Coroutines
+    private val relayScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    /**
+     * Main entry point for relay decisions
+     * Only packets that aren't specifically addressed to us should be passed here
+     */
+    suspend fun handlePacketRelay(routed: RoutedPacket) {
+        val packet = routed.packet
+        val peerID = routed.peerID ?: "unknown"
+        
+        SLog.d(TAG, "Evaluating relay for packet type ${packet.type} from ${peerID} (TTL: ${packet.ttl})")
+        
+        // Double-check this packet isn't addressed to us
+        if (isPacketAddressedToMe(packet)) {
+            SLog.d(TAG, "Packet addressed to us, skipping relay")
+            return
+        }
+        
+        // Skip our own packets
+        if (peerID == myPeerID) {
+            SLog.d(TAG, "Packet from ourselves, skipping relay")
+            return
+        }
+        
+        // Check TTL and decrement
+        if (packet.ttl == 0u.toUByte()) {
+            SLog.d(TAG, "TTL expired, not relaying packet")
+            return
+        }
+        
+        // Decrement TTL by 1
+        val networkSize = delegate?.getNetworkSize() ?: 1
+        val decrementedTtl = (packet.ttl - 1u).toUByte()
+        val voiceTtl = if (
+            MessageType.fromValue(packet.type) == MessageType.VOICE_FRAME && networkSize > 6
+        ) minOf(decrementedTtl, 5u.toUByte()) else decrementedTtl
+        val relayPacket = packet.copy(ttl = voiceTtl)
+        SLog.d(TAG, "Decremented TTL from ${packet.ttl} to ${relayPacket.ttl}")
+        if (MessageType.fromValue(packet.type) == MessageType.VOICE_FRAME) {
+            delay(Random.nextLong(8L, 26L))
+        }
+        
+        // Source-based routing: if route is set and includes us, try targeted next-hop forwarding
+        val route = relayPacket.route
+        if (!route.isNullOrEmpty()) {
+            // Check for duplicate hops to prevent routing loops
+            if (route.map { it.toHexString() }.toSet().size < route.size) {
+                SLog.w(TAG, "Packet with duplicate hops dropped")
+                return
+            }
+            val myIdBytes = hexStringToPeerBytes(myPeerID)
+            val index = route.indexOfFirst { it.contentEquals(myIdBytes) }
+            if (index >= 0) {
+                val nextHopIdHex: String? = run {
+                    val nextIndex = index + 1
+                    if (nextIndex < route.size) {
+                        route[nextIndex].toHexString()
+                    } else {
+                        // We are the last intermediate; try final recipient as next hop
+                        relayPacket.recipientID?.toHexString()
+                    }
+                }
+                if (nextHopIdHex != null) {
+                    val success = try { delegate?.sendToPeer(nextHopIdHex, RoutedPacket(relayPacket, peerID, routed.relayAddress)) } catch (_: Exception) { false } ?: false
+                    if (success) {
+                        SLog.i(TAG, "📦 Source-route relay: ${peerID.take(8)} -> ${nextHopIdHex.take(8)} (type ${'$'}{packet.type}, TTL ${'$'}{relayPacket.ttl})")
+                        return
+                    } else {
+                        SLog.w(TAG, "Source-route next hop ${nextHopIdHex.take(8)} not directly connected; falling back to broadcast")
+                    }
+                }
+            }
+        }
+
+        // Apply relay logic based on packet type and debug switch
+        val shouldRelay = isRelayEnabled() && shouldRelayPacket(relayPacket, peerID)
+        if (shouldRelay) {
+            relayPacket(RoutedPacket(relayPacket, peerID, routed.relayAddress))
+        } else {
+            SLog.d(TAG, "Relay decision: NOT relaying packet type ${packet.type}")
+        }
+    }
+    
+    /**
+     * Check if a packet is specifically addressed to us
+     */
+    internal fun isPacketAddressedToMe(packet: SignalLessPacket): Boolean {
+        val recipientID = packet.recipientID
+        
+        // No recipient means broadcast (not addressed to us specifically)
+        if (recipientID == null) {
+            return false
+        }
+        
+        // Check if it's a broadcast recipient
+        val broadcastRecipient = delegate?.getBroadcastRecipient()
+        if (broadcastRecipient != null && recipientID.contentEquals(broadcastRecipient)) {
+            return false
+        }
+        
+        // Check if recipient matches our peer ID
+        val recipientIDString = recipientID.toHexString()
+        return recipientIDString == myPeerID
+    }
+    
+    /**
+     * Determine if we should relay this packet based on type and network conditions
+     */
+    private fun shouldRelayPacket(packet: SignalLessPacket, fromPeerID: String): Boolean {
+        // Always relay if TTL is high enough (indicates important message)
+        if (packet.ttl >= 4u) {
+            SLog.d(TAG, "High TTL (${packet.ttl}), relaying")
+            return true
+        }
+        
+        // Get network size for adaptive relay probability
+        val networkSize = delegate?.getNetworkSize() ?: 1
+        
+        // Small networks always relay to ensure connectivity
+        if (networkSize <= 3) {
+            SLog.d(TAG, "Small network (${networkSize} peers), relaying")
+            return true
+        }
+        
+        // Apply adaptive relay probability based on network size
+        val relayProb = when {
+            networkSize <= 10 -> 1.0    // Always relay in small networks
+            networkSize <= 30 -> 0.85   // High probability for medium networks
+            networkSize <= 50 -> 0.7    // Moderate probability
+            networkSize <= 100 -> 0.55  // Lower probability for large networks
+            else -> 0.4                 // Lowest probability for very large networks
+        }
+        
+        val shouldRelay = Random.nextDouble() < relayProb
+        SLog.d(TAG, "Network size: ${networkSize}, Relay probability: ${relayProb}, Decision: ${shouldRelay}")
+        
+        return shouldRelay
+    }
+    
+    /**
+     * Actually broadcast the packet for relay
+     */
+    private fun relayPacket(routed: RoutedPacket) {
+        SLog.d(TAG, "🔄 Relaying packet type ${routed.packet.type} with TTL ${routed.packet.ttl}")
+        delegate?.broadcastPacket(routed)
+    }
+    
+    /**
+     * Get debug information
+     */
+    fun getDebugInfo(): String {
+        return buildString {
+            appendLine("=== Packet Relay Manager Debug Info ===")
+            appendLine("Relay Scope Active: ${relayScope.isActive}")
+            appendLine("My Peer ID: ${myPeerID}")
+            appendLine("Network Size: ${delegate?.getNetworkSize() ?: "unknown"}")
+        }
+    }
+    
+    /**
+     * Shutdown the relay manager
+     */
+    fun shutdown() {
+        SLog.d(TAG, "Shutting down PacketRelayManager")
+        relayScope.cancel()
+    }
+}
+
+/**
+ * Delegate interface for packet relay manager callbacks
+ */
+interface PacketRelayManagerDelegate {
+    // Network information
+    fun getNetworkSize(): Int
+    fun getBroadcastRecipient(): ByteArray
+    
+    // Packet operations
+    fun broadcastPacket(routed: RoutedPacket)
+    fun sendToPeer(peerID: String, routed: RoutedPacket): Boolean
+}
+
+private fun hexStringToPeerBytes(hex: String): ByteArray {
+    val result = ByteArray(8)
+    var idx = 0
+    var out = 0
+    while (idx + 1 < hex.length && out < 8) {
+        val b = hex.substring(idx, idx + 2).toIntOrNull(16)?.toByte() ?: 0
+        result[out++] = b
+        idx += 2
+    }
+    return result
+}

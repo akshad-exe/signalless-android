@@ -15,4 +15,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "signalless-android"
 include(":app")
+include(":protocol-core")
+include(":relay-desktop")
 // Using published Arti AAR; local module not included

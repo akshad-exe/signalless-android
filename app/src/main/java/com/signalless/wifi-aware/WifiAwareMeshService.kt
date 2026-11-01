@@ -15,7 +15,7 @@ import androidx.annotation.RequiresPermission
 import com.signalless.app.crypto.EncryptionService
 import com.signalless.app.mesh.DirectLinkAnnouncementPolicy
 import com.signalless.app.mesh.FragmentingPacketSender
-import com.signalless.app.mesh.MeshCore
+import com.signalless.android.mesh.MeshCore
 import com.signalless.app.mesh.MeshService
 import com.signalless.app.mesh.MeshTransport
 import com.signalless.app.mesh.PeerInfo
@@ -26,7 +26,7 @@ import com.signalless.app.protocol.SignalLessPacket
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SpecialRecipients
 import com.signalless.app.service.TransportBridgeService
-import com.signalless.app.sync.GossipSyncManager
+import com.signalless.android.sync.GossipSyncManager
 import com.signalless.app.util.toHexString
 import java.io.InterruptedIOException
 import kotlinx.coroutines.CancellationException
@@ -85,7 +85,7 @@ class WifiAwareMeshService(private val context: Context) : MeshService, Transpor
     // Peer ID must match BluetoothMeshService: first 16 hex chars of identity fingerprint (8 bytes)
     override val myPeerID: String = encryptionService.getIdentityFingerprint().take(16)
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val powerManager = com.signalless.app.mesh.PowerManager.getInstance(context.applicationContext)
+    private val powerManager = com.signalless.android.mesh.PowerManager.getInstance(context.applicationContext)
     private val wifiTransport = WifiAwareTransport()
     private lateinit var meshCore: MeshCore
     private lateinit var fragmentingSender: FragmentingPacketSender
