@@ -390,6 +390,7 @@
   <string name="call_ended_hung_up">Call ended</string>
   <string name="call_ended_unavailable">No encrypted mesh session</string>
   <string name="call_ended_microphone">Microphone permission is required</string>
+  <string name="call_ended_unreachable">Peer is out of call range</string>
   <string name="cd_pick_media">Pick media</string>
   <string name="cd_offline_mesh_chat">Offline Mesh Chat</string>
   <string name="cd_online_geohash_channels">Online Geohash Channels</string>

@@ -18,7 +18,9 @@ class CallSession(
         /** Negotiated codec, known once the peer's invite or accept arrived. */
         val codec: CallCodec? = null,
         /** True while either side has the call on hold. */
-        val onHold: Boolean = false
+        val onHold: Boolean = false,
+        /** Audio paths the peer supports. */
+        val remotePathMask: Int = CallSignal.V1_PATHS
     )
 
     data class Effect(val peerID: String, val signal: CallSignal)
@@ -32,6 +34,7 @@ class CallSession(
     /** Version to answer in: a version 1 caller cannot decode version 2. */
     private var replyVersion = CallSignal.VERSION_2
     private var remoteCodecMask = CallCodec.AAC_LC.mask
+    private var remotePathMask = CallSignal.V1_PATHS
     private var localHold = false
     private var remoteHold = false
 
@@ -44,7 +47,8 @@ class CallSession(
         codec = if (phase == CallPhase.ACTIVE) {
             VoiceCodecs.negotiate(localCodecMask, remoteCodecMask) ?: CallCodec.AAC_LC
         } else null,
-        onHold = localHold || remoteHold
+        onHold = localHold || remoteHold,
+        remotePathMask = remotePathMask
     )
 
     /** Holds or resumes this side, for example while a cellular call is answered. */
@@ -60,7 +64,10 @@ class CallSession(
     }
 
     private fun signal(action: CallAction, id: ByteArray) =
-        CallSignal(action, id.copyOf(), replyVersion, codecMask = localCodecMask)
+        CallSignal(
+            action, id.copyOf(), replyVersion,
+            codecMask = localCodecMask, pathMask = LOCAL_PATHS
+        )
 
     fun place(peerID: String, newCallId: ByteArray, nowMs: Long): List<Effect> {
         if (phase != CallPhase.IDLE) return emptyList()
@@ -73,6 +80,7 @@ class CallSession(
         endReason = null
         replyVersion = CallSignal.VERSION_2
         remoteCodecMask = CallCodec.AAC_LC.mask
+        remotePathMask = CallSignal.V1_PATHS
         clearHold()
         return listOf(Effect(peerID, signal(CallAction.INVITE, newCallId)))
     }
@@ -106,6 +114,7 @@ class CallSession(
             CallAction.ACCEPT -> {
                 if (matches(fromPeerID, signal) && phase == CallPhase.OUTGOING) {
                     remoteCodecMask = signal.codecMask
+                    remotePathMask = signal.pathMask
                     phase = CallPhase.ACTIVE
                     connectedAtMs = nowMs
                     phaseEnteredAtMs = nowMs
@@ -149,6 +158,12 @@ class CallSession(
         return finish(action, CallEndReason.TIMEOUT, nowMs)
     }
 
+    /** Ends a live call for a local reason and tells the peer. */
+    fun fail(reason: CallEndReason, nowMs: Long): List<Effect> {
+        if (phase == CallPhase.IDLE) return emptyList()
+        return finish(CallAction.HANGUP, reason, nowMs)
+    }
+
     /** Local failure before a signal exists, such as a missing session or microphone. */
     fun markEnded(peerID: String, reason: CallEndReason) {
         if (phase != CallPhase.IDLE || peerID.isEmpty()) return
@@ -173,6 +188,7 @@ class CallSession(
             phase = CallPhase.INCOMING
             replyVersion = signal.version
             remoteCodecMask = signal.codecMask
+            remotePathMask = signal.pathMask
             clearHold()
             phaseEnteredAtMs = nowMs
             connectedAtMs = null
@@ -182,6 +198,7 @@ class CallSession(
         if (fromPeerID == peerID && phase == CallPhase.OUTGOING) {
             callId = lesserCallId(callId, signal.callId)
             remoteCodecMask = signal.codecMask
+            remotePathMask = signal.pathMask
             phase = CallPhase.ACTIVE
             connectedAtMs = nowMs
             phaseEnteredAtMs = nowMs
@@ -220,6 +237,7 @@ class CallSession(
 
     companion object {
         const val RING_TIMEOUT_MS = 45_000L
+        private const val LOCAL_PATHS = CallSignal.V1_PATHS or CallSignal.PATH_WIFI_AWARE
 
         fun lesserCallId(left: ByteArray?, right: ByteArray): ByteArray {
             val current = left ?: return right.copyOf()

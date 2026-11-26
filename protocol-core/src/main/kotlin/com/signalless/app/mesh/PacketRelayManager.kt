@@ -92,10 +92,14 @@ class PacketRelayManager(
                         relayPacket.recipientID?.toHexString()
                     }
                 }
+                // A TTL no longer than the route means "this route or nothing" (call audio).
+                val strictRoute = relayPacket.ttl.toInt() + index < route.size
                 if (nextHopIdHex != null) {
                     val success = try { delegate?.sendToPeer(nextHopIdHex, RoutedPacket(relayPacket, peerID, routed.relayAddress)) } catch (_: Exception) { false } ?: false
                     if (success) {
                         SLog.i(TAG, "📦 Source-route relay: ${peerID.take(8)} -> ${nextHopIdHex.take(8)} (type ${'$'}{packet.type}, TTL ${'$'}{relayPacket.ttl})")
+                        return
+                    } else if (strictRoute) {
                         return
                     } else {
                         SLog.w(TAG, "Source-route next hop ${nextHopIdHex.take(8)} not directly connected; falling back to broadcast")

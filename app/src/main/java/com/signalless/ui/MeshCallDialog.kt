@@ -138,6 +138,7 @@ private fun endReasonText(reason: CallEndReason): String = when (reason) {
     CallEndReason.HUNG_UP -> stringResource(R.string.call_ended_hung_up)
     CallEndReason.UNAVAILABLE -> stringResource(R.string.call_ended_unavailable)
     CallEndReason.MICROPHONE -> stringResource(R.string.call_ended_microphone)
+    CallEndReason.UNREACHABLE -> stringResource(R.string.call_ended_unreachable)
 }
 
 @Composable

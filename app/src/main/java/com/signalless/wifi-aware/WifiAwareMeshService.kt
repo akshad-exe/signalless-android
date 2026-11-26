@@ -1426,6 +1426,9 @@ class WifiAwareMeshService(private val context: Context) : MeshService, Transpor
         meshCore.sendVoiceFrame(recipientPeerID, payload)
     }
 
+    fun sendCallAudio(recipientPeerID: String, payload: ByteArray): Boolean =
+        meshCore.sendCallAudio(recipientPeerID, payload)
+
     override fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
         meshCore.sendCallSignal(recipientPeerID, payload)
     }

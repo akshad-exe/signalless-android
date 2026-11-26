@@ -112,5 +112,6 @@ enum class CallEndReason {
     TIMEOUT,
     HUNG_UP,
     UNAVAILABLE,
-    MICROPHONE
+    MICROPHONE,
+    UNREACHABLE
 }

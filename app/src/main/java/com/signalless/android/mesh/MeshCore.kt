@@ -675,6 +675,29 @@ class MeshCore(
         )
     }
 
+    /** Sends one call audio packet over a direct link of this transport. Never floods it. */
+    fun sendCallAudio(recipientPeerID: String, payload: ByteArray): Boolean {
+        if (!encryptionService.hasEstablishedSession(recipientPeerID)) return false
+        return try {
+            val unsigned = com.signalless.app.features.call.callAudioPacket(
+                senderID = MeshPacketUtils.hexStringToByteArray(myPeerID),
+                recipientID = MeshPacketUtils.hexStringToByteArray(recipientPeerID),
+                ciphertext = encryptionService.encrypt(
+                    NoisePayload(NoisePayloadType.CALL_AUDIO, payload).encode(),
+                    recipientPeerID
+                ),
+                hops = emptyList(),
+                timestampMs = System.currentTimeMillis()
+            )
+            val signature = unsigned.toBinaryDataForSigning()
+                ?.let(encryptionService::signData) ?: return false
+            transport.sendPacketToPeer(recipientPeerID, unsigned.copy(signature = signature))
+        } catch (e: Exception) {
+            Log.w("MeshCore", "Call audio send failed: ${e.message}")
+            false
+        }
+    }
+
     private fun dispatchVoiceFrame(request: VoiceFrameRequest) {
         try {
             val recipientPeerID = request.recipientPeerID

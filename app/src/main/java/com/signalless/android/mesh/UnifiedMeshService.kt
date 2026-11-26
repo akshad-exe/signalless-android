@@ -3,10 +3,13 @@ package com.signalless.android.mesh
 import android.content.Context
 import android.util.Log
 import com.signalless.app.favorites.FavoriteControlMessage
+import com.signalless.app.features.call.CallMeshLink
+import com.signalless.app.services.meshgraph.RoutePlanner
 import com.signalless.app.model.SignalLessFilePacket
 import com.signalless.app.model.SignalLessMessage
 import com.signalless.app.noise.NoiseSession
 import com.signalless.app.wifiaware.WifiAwareController
+import com.signalless.app.wifiaware.WifiAwareMeshService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,7 +37,7 @@ import com.signalless.app.mesh.PrivateMediaPreparation
 class UnifiedMeshService(
     private val context: Context,
     private val bluetooth: BluetoothMeshService
-) : MeshService, BluetoothMeshDelegate {
+) : MeshService, BluetoothMeshDelegate, CallMeshLink {
 
     companion object {
         private const val TAG = "UnifiedMeshService"
@@ -200,6 +203,23 @@ class UnifiedMeshService(
                 ?: bluetooth.sendCallSignal(recipientPeerID, payload)
         }
     }
+
+    override fun isWifiAwareDirect(peerID: String): Boolean = isWifiReady(peerID) &&
+        runCatching { wifiService()?.getPeerInfo(peerID)?.isDirectConnection == true }.getOrDefault(false)
+
+    override fun isBleDirect(peerID: String): Boolean = isBleEnabled() &&
+        runCatching { bluetooth.getPeerInfo(peerID)?.isDirectConnection == true }.getOrDefault(false)
+
+    override fun hasBleSession(peerID: String): Boolean =
+        isBleEnabled() && hasEstablishedSessionOnBluetooth(peerID)
+
+    override fun meshPath(peerID: String): List<String>? = RoutePlanner.shortestPath(myPeerID, peerID)
+
+    override fun sendWifiAwareCallAudio(peerID: String, payload: ByteArray): Boolean =
+        (wifiService() as? WifiAwareMeshService)?.sendCallAudio(peerID, payload) == true
+
+    override fun sendBleCallAudio(peerID: String, hops: List<String>, payload: ByteArray): Boolean =
+        bluetooth.sendCallAudio(peerID, hops, payload)
 
     override fun prepareFilePrivate(
         recipientPeerID: String,

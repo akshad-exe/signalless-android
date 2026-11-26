@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.signalless.app.features.call.CallAudioEngine
+import com.signalless.app.features.call.CallTransport
 import com.signalless.app.features.call.CallEndReason
 import com.signalless.app.features.call.CallNotifications
 import com.signalless.app.features.call.CallPhase
@@ -185,8 +186,14 @@ class CallService : Service(), TelecomBridge.Listener {
             } else {
                 telecom?.send(TelecomBridge.Command.Active)
             }
-            if (!startAudio(after)) {
-                dispatch { session.hangup(System.currentTimeMillis()) }
+            val transport = CallTransport(mesh, checkNotNull(after.peerID), after.remotePathMask)
+            val failure = when {
+                !transport.hasPath() -> CallEndReason.UNREACHABLE
+                !startAudio(after, transport) -> CallEndReason.MICROPHONE
+                else -> null
+            }
+            if (failure != null) {
+                dispatch { session.fail(failure, System.currentTimeMillis()) }
                 return
             }
         }
@@ -267,7 +274,7 @@ class CallService : Service(), TelecomBridge.Listener {
     }
 
     @SuppressLint("WakelockTimeout")
-    private fun startAudio(snapshot: CallSession.Snapshot): Boolean {
+    private fun startAudio(snapshot: CallSession.Snapshot, transport: CallTransport): Boolean {
         val peerID = snapshot.peerID ?: return false
         val callId = snapshot.callId ?: return false
         val codec = snapshot.codec ?: return false
@@ -292,8 +299,7 @@ class CallService : Service(), TelecomBridge.Listener {
         val started = CallAudioEngine(
             callId,
             VoiceCodecs.create(codec),
-            // Sending is wired to the call transport in a later change.
-            send = {},
+            send = { transport.send(it) },
             onFailure = { scope.launch { hangup() } }
         )
         if (!started.start()) return false
