@@ -11,7 +11,7 @@ See [NOTICE](NOTICE) for attribution and licensing.
 ## Status
 
 This is a working fork with an Android-only build. It compiles and its unit
-suite passes (585 tests, 0 failures, 3 skipped on this workstation), including
+suite passes (638 tests, 0 failures, 3 skipped on this workstation), including
 the protocol golden vectors.
 
 Not yet done:
@@ -37,11 +37,13 @@ Not yet done:
   the mesh. Slow on BLE; much faster when both peers support Wi-Fi Aware.
 - **Live voice.** Push-to-talk bursts (AAC-LC 16 kHz mono). Half-duplex and
   best-effort by design; the voice note sent on release is the reliable path.
-- **Mesh calls.** In an encrypted direct chat, a call opens the microphone and
-  streams those same live voice frames in both directions. SignalLess peers
-  only; other clients ignore the call signal. An incoming call that arrives
-  while the app is in the background posts a notification and is shown again
-  when the app returns. This is not a cellular or WebRTC call.
+- **Mesh calls.** Full-duplex voice calls from an encrypted direct chat, with no
+  internet. Opus, falling back to AAC-LC, over Wi-Fi Aware, direct Bluetooth or a
+  route of up to three hops through phones or the desktop relay. The call rings
+  full screen, keeps running with the screen locked, switches path when audio
+  degrades and ends after 10 seconds without a connection. Call audio is sent
+  only along its route and is never stored. SignalLess peers only. Not yet
+  tested on physical devices.
 - **Location channels.** Geohash-based rooms over Nostr.
 - **Tor.** Embedded Arti client for private internet access.
 - **Emergency wipe.** Triple-tap clears all local data.
