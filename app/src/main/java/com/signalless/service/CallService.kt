@@ -443,6 +443,11 @@ class CallService : Service(), TelecomBridge.Listener {
             val signal = CallSignal.decode(payload) ?: return
             // Only an invite may start the service; late signals for no call are dropped.
             if (instance == null && signal.action != CallAction.INVITE) return
+            if (signal.action in PATH_ACTIONS) {
+                // Frequent, and only meaningful to a running call: skip the service intent.
+                instance?.let { service -> service.scope.launch { service.onSignal(peerID, signal) } }
+                return
+            }
             try {
                 ContextCompat.startForegroundService(
                     context,

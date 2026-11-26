@@ -169,9 +169,11 @@ class RelayEngine(
             }
 
             is RelayTransportEvent.LinkDown -> {
+                val lostPeer = links.peerFor(event.linkId)
                 links.remove(event.linkId)
                 SLog.i(TAG, "link ${event.linkId} down reason=${event.reason}")
                 notice("link down link=${event.linkId} reason=${event.reason}")
+                if (lostPeer != null) announceToAllLinks()
             }
 
             is RelayTransportEvent.Bytes -> handleFrame(event.linkId, event.data)
@@ -223,6 +225,7 @@ class RelayEngine(
                 links.bindPeer(linkId, senderId)
                 if (previousPeer != senderId) {
                     flushPending(senderId)
+                    announceToAllLinks()
                 }
             }
         }
@@ -268,6 +271,7 @@ class RelayEngine(
 
         val relayTtl = minOf(packet.ttl, maxTtl)
         val relayed = packet.copy(ttl = (relayTtl - 1u).toUByte())
+        if (forwardAlongRoute(relayed, ingressLinkId)) return
         var targets = targetsFor(relayed, ingressLinkId)
         val recipient = relayed.recipientID
         if (targets.isEmpty() && recipient != null &&
@@ -293,12 +297,37 @@ class RelayEngine(
         }
     }
 
+    /**
+     * Sends a source-routed packet to the next hop. Returns false when normal relaying should
+     * handle it. A packet whose TTL only covers its route (call audio) is never stored or flooded.
+     */
+    private suspend fun forwardAlongRoute(packet: SignalLessPacket, ingressLinkId: String): Boolean {
+        val route = packet.route.orEmpty()
+        val hop = route.indexOfFirst { it.toHexString() == myPeerId }
+        if (hop < 0) return false
+        val next = (route.getOrNull(hop + 1) ?: packet.recipientID)?.toHexString() ?: return false
+        val targets = links.linksForPeer(next).filter { it.id != ingressLinkId }
+        if (targets.isEmpty()) {
+            if (packet.ttl.toInt() + hop >= route.size) return false
+            counters.noRoute.incrementAndGet()
+            return true
+        }
+        for (target in targets) {
+            if (sendPacketToTarget(packet, target)) counters.forwarded.incrementAndGet()
+        }
+        return true
+    }
+
     private suspend fun sendPacketToTarget(
         packet: SignalLessPacket,
         target: RelayLink,
         countAnnouncement: Boolean = false,
     ): Boolean {
-        val encoded = packet.toBinaryData()
+        var encoded = packet.toBinaryData()
+        // Dropping the padding beats fragmenting a routed packet, which would delay call audio.
+        if (packet.route != null && encoded != null && encoded.size > target.maxNotificationSize) {
+            encoded = packet.toBinaryData(padding = false)
+        }
         if (encoded == null) {
             counters.encodeFailed.incrementAndGet()
             return false
@@ -353,6 +382,7 @@ class RelayEngine(
             nickname = announcementNickname,
             ttl = DEFAULT_ANNOUNCE_TTL,
             timestampMs = clock(),
+            neighbors = links.snapshot().mapNotNull { it.peerId }.distinct(),
         )
         sendPacketToTarget(announcement, link, countAnnouncement = true)
     }
