@@ -53,7 +53,16 @@ jobs:
           cache-disabled: true
 
       - name: Build canonical unsigned APKs and AAB
-        run: tools/reproducible-builds/build-in-container.sh "$RUNNER_TEMP/release-${{ matrix.replica }}"
+        # Maven Central intermittently refuses runners during dependency resolution.
+        run: |
+          output="$RUNNER_TEMP/release-${{ matrix.replica }}"
+          for attempt in 1 2 3; do
+            rm -rf "$output"
+            tools/reproducible-builds/build-in-container.sh "$output" && exit 0
+            echo "::warning::build attempt $attempt failed"
+            sleep $((attempt * 60))
+          done
+          exit 1
 
       - name: Upload unsigned replica
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

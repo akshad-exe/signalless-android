@@ -26,7 +26,6 @@ required=(
   signalless-android-arm64-unsigned.apk
   signalless-android-arm64.apk
   signalless-android-armv7-unsigned.apk
-  signalless-android-play-upload.aab
   signalless-android-release-unsigned.aab
   signalless-android-universal-unsigned.apk
   signalless-android-universal.apk
