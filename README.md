@@ -43,8 +43,8 @@ the protocol golden vectors.
 
 Not yet done:
 
-- **Durable outbox.** Queued messages live in memory, so an unsent message is
-  lost if the process dies. Wiring a SQLite outbox is the top priority.
+- **Queueing for public messages.** Unsent private messages are saved and retried
+  after a restart, for up to 24 hours. Public mesh messages are not queued.
 - **Emergency SOS.** No priority-broadcast packet type.
 - **Scored transport selection.** Transports are picked by binary
   ready/connected checks rather than link quality.
