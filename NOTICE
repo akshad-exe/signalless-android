@@ -44,9 +44,9 @@ the MIT -> GPL-3.0 relicense and is stale. LICENSE.md is authoritative.
 Third-party components
 ----------------------
 
-  com.bitchat.android.noise.southernstorm  MIT
+  com.signalless.app.noise.southernstorm  MIT
     Noise protocol framework, Copyright (C) 2016 Southern Storm
-    Software, Pty Ltd. Vendored under app/src/main/java.
+    Software, Pty Ltd. Vendored under protocol-core/src/main/java.
 
   Arti (Tor) native libraries (libarti_android.so)  Tor Project licenses
     Built from the Arti source via tools/arti-build; see

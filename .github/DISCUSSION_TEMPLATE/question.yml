@@ -13,7 +13,7 @@ body:
           required: true
         - label: "I have taken the time to fill in all the required details. I understand that the question will be dismissed otherwise."
           required: true
-        - label: "I have read and understood the [technical architecture](https://github.com/akshad-exe/signalless-android/blob/main/README.md#technical-architecture)."
+        - label: "I have read and understood the [technical architecture](https://github.com/akshad-exe/signalless-android/blob/main/README.md#architecture)."
           required: true
 
   - type: textarea

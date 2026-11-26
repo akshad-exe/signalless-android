@@ -1,12 +1,39 @@
+<div align="center">
+
+<img src=".github/assets/icon.png" width="96" alt="SignalLess icon">
+
 # SignalLess for Android
 
-Offline-first, peer-to-peer campus messaging. Messages travel over a local
-Bluetooth mesh when there is no network, and fall back to Nostr relays when one
-is available. No accounts, no phone numbers, no central servers.
+**Messaging that works without a network.**<br>
+Offline-first, peer-to-peer chat over a Bluetooth mesh. No accounts, no phone numbers, no central servers.
+
+[![Latest release](https://img.shields.io/github/v/release/akshad-exe/signalless-android?label=release)](https://github.com/akshad-exe/signalless-android/releases/latest)
+[![Android CI](https://github.com/akshad-exe/signalless-android/actions/workflows/android-build.yml/badge.svg?branch=main)](https://github.com/akshad-exe/signalless-android/actions/workflows/android-build.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.md)
+![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
+
+[**Download**](https://github.com/akshad-exe/signalless-android/releases/latest) · [Features](#features) · [Build](#building) · [Architecture](#architecture) · [Contributing](#contributing)
+
+<img src=".github/assets/screens.png" width="100%" alt="SignalLess setup screens: permissions, Bluetooth, battery, location and start-up">
+
+</div>
+
+Messages travel over a local Bluetooth mesh when there is no network, and fall back to
+Nostr relays when one is available. Useful on a campus, at an event or anywhere coverage is poor.
 
 SignalLess is built on the mesh transport, Noise XX encryption, and binary wire
 protocol of [BitChat for Android](https://github.com/permissionlesstech/bitchat-android).
 See [NOTICE](NOTICE) for attribution and licensing.
+
+## Download
+
+1. Open the [latest release](https://github.com/akshad-exe/signalless-android/releases/latest) and download
+   `signalless-android-arm64.apk` (most phones) or `signalless-android-universal.apk`.
+   Files ending in `-unsigned` cannot be installed.
+2. Optionally verify it: `sha256sum -c --ignore-missing SIGNALLESS_SHA256SUMS`.
+3. Open the APK and allow installation from that source.
+
+Requires Android 8.0 or newer. Updates are installed by hand.
 
 ## Status
 
@@ -49,7 +76,7 @@ Not yet done:
 Requires JDK 21 and the Android SDK (compileSdk 37, build-tools 37.0.0).
 
 ```sh
-git clone <this-repo>
+git clone https://github.com/akshad-exe/signalless-android.git
 cd signalless-android
 
 # Single APK for all ABIs
@@ -160,6 +187,14 @@ Android's background execution limits.
 **BLE has no IP layer.** The protocol is a compact binary packet with TTL,
 signing, and fragmentation. Wi-Fi Aware carries the same packets as raw bytes.
 That is why WebRTC and other IP-dependent stacks do not fit this transport.
+
+## Contributing
+
+Bug reports, device testing and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md). Report security problems privately as described in
+[SECURITY.md](SECURITY.md).
+
+[Changelog](CHANGELOG.md) · [Releasing](RELEASING.md) · [Privacy policy](PRIVACY_POLICY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
 ## Differences from upstream BitChat
 

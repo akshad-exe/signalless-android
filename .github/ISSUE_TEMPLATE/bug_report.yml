@@ -22,7 +22,7 @@ body:
           required: true
         - label: "This issue contains only one bug."
           required: true
-        - label: "I have read and understood the [contribution guidelines](https://github.com/akshad-exe/signalless-android/blob/main/README.md#contributing)."
+        - label: "I have read and understood the [contribution guidelines](https://github.com/akshad-exe/signalless-android/blob/main/CONTRIBUTING.md)."
           required: true
 
   - type: input
