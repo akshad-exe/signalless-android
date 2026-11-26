@@ -3,6 +3,7 @@ package com.signalless.relay
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SignalLessPacket
 import com.signalless.app.util.SLog
+import com.signalless.relay.identity.RelayIdentity
 import com.signalless.relay.transport.FakeRelayTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -19,6 +20,7 @@ class RelayEngineTest {
     private val myPeerId = "cccccccccccccccc"
     private val peerA = "aaaaaaaaaaaaaaaa"
     private val peerB = "bbbbbbbbbbbbbbbb"
+    private val relayIdentity = RelayIdentity.generate()
 
     @Before
     fun silenceLogs() {
@@ -73,24 +75,53 @@ class RelayEngineTest {
     }
 
     @Test
-    fun `unicast uses the peer learned from the link`() = withEngine { fake, engine ->
+    fun `unicast uses the peer learned from a verified direct announce`() =
+        withEngine(relayIdentity) { fake, engine ->
+            val phone = RelayIdentity.generate()
+            fake.linkUp("link-1")
+            fake.linkUp("link-2")
+            fake.linkUp("link-3")
+
+            fake.receive("link-2", announceBytes(phone, ttl = 7u))
+            awaitUntil("peer bound") {
+                engine.linksSnapshot().any { it.id == "link-2" && it.peerId == phone.peerId }
+            }
+            awaitUntil("announce relayed") { engine.stats().forwarded == 2L }
+            fake.clearSentFrames()
+
+            fake.receive("link-1", packetBytes(sender = peerA, recipient = phone.peerId, ttl = 3u))
+
+            awaitUntil("unicast forwarded") { engine.stats().forwarded == 3L }
+            assertEquals("link-2", fake.sentFrames().single().linkId)
+        }
+
+    @Test
+    fun `unauthenticated sender id neither binds a link nor flushes queued packets`() =
+        withEngine(relayIdentity) { fake, engine ->
+            val victim = RelayIdentity.generate()
+            fake.linkUp("link-1")
+            fake.receive("link-1", packetBytes(sender = peerA, recipient = victim.peerId, ttl = 3u))
+            awaitUntil("stored") { engine.stats().stored == 1L }
+
+            fake.linkUp("attacker")
+            fake.receive("attacker", packetBytes(sender = victim.peerId, ttl = 3u))
+            // A relayed (lowered TTL) announce is genuine but says nothing about this link.
+            fake.receive("attacker", announceBytes(victim, ttl = 6u))
+            awaitUntil("both relayed") { engine.stats().forwarded == 2L }
+
+            assertEquals(0L, engine.stats().storeFlushed)
+            assertTrue(engine.linksSnapshot().all { it.peerId == null })
+        }
+
+    @Test
+    fun `unicast for an unbound peer still reaches other links`() = withEngine { fake, engine ->
         fake.linkUp("link-1")
         fake.linkUp("link-2")
 
-        fake.receive(
-            "link-2",
-            packetBytes(sender = peerB, type = MessageType.ANNOUNCE.value),
-        )
-        awaitUntil("peer b bound") {
-            engine.linksSnapshot().any { it.id == "link-2" && it.peerId == peerB }
-        }
-        fake.clearSentFrames()
-
         fake.receive("link-1", packetBytes(sender = peerA, recipient = peerB, ttl = 3u))
 
-        awaitUntil("unicast forwarded") { fake.sentFrames().size == 1 }
+        awaitUntil("flooded") { engine.stats().forwarded == 1L }
         assertEquals("link-2", fake.sentFrames().single().linkId)
-        assertEquals(2L, engine.stats().forwarded)
     }
 
     @Test
@@ -180,11 +211,20 @@ class RelayEngineTest {
         }
     }
 
+    private fun announceBytes(phone: RelayIdentity, ttl: UByte): ByteArray =
+        requireNotNull(phone.signedAnnouncement("phone", ttl).toBinaryData())
+
     private fun withEngine(
+        identity: RelayIdentity? = null,
         block: suspend CoroutineScope.(FakeRelayTransport, RelayEngine) -> Unit,
     ) = runBlocking {
         val fake = FakeRelayTransport()
-        val engine = RelayEngine(myPeerId = myPeerId, transport = fake, scope = this)
+        val engine = RelayEngine(
+            myPeerId = identity?.peerId ?: myPeerId,
+            transport = fake,
+            scope = this,
+            identity = identity,
+        )
         engine.start()
         try {
             block(fake, engine)

@@ -189,9 +189,10 @@ is used because the unpackaged build does not install an ACL.
 For each decoded packet from a link:
 
 1. Reject packets claiming the relay's own sender ID.
-2. Bind the link to the sender peer ID. This is how unicast routes are learned.
-3. If an identity is configured, verify inbound `ANNOUNCE` signatures and
+2. If an identity is configured, verify inbound `ANNOUNCE` signatures and
    drop invalid announcements.
+3. Bind the link to the sender only for a verified `ANNOUNCE` that still has the
+   full TTL (a direct neighbour). No other packet changes a binding.
 4. Drop packets addressed to the relay itself.
 5. Drop TTL 0 packets.
 6. For `FRAGMENT`, deduplicate the fragment, reassemble the original packet, and
@@ -201,8 +202,9 @@ For each decoded packet from a link:
 8. Decrement TTL once.
 9. Broadcast to every other link; unicast to every link currently bound to the
    recipient.
-10. If a unicast recipient has no link, store the packet in a bounded cache and
-    flush it when that peer binds.
+10. If a unicast recipient has no link, store the packet in a bounded cache,
+    flush it when that peer binds, and forward it to every other link in case
+    the recipient is behind another phone.
 
 Every outbound write is checked against the target link's reported maximum
 notification size. A packet that does not fit is fragmented to that exact limit,

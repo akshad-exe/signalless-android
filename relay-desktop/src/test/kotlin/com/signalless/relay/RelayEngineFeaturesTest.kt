@@ -90,19 +90,6 @@ class RelayEngineFeaturesTest {
             fake.linkUp("l1")
             fake.linkUp("l2", maxNotificationSize = 514)
 
-            // Bind link l2 to peer B with a small broadcast.
-            val bind = packet(
-                type = MessageType.MESSAGE,
-                sender = peerB,
-                recipient = null,
-                ttl = 5u,
-                payload = byteArrayOf(1),
-            )
-            fake.receive("l2", bind.toBinaryData()!!)
-            awaitUntil("binding broadcast") { fake.sentFrames().isNotEmpty() }
-            fake.clearSentFrames()
-            val forwardedBeforeFragments = engine.stats().forwarded
-
             val original = packet(
                 type = MessageType.MESSAGE,
                 sender = peerA,
@@ -120,7 +107,7 @@ class RelayEngineFeaturesTest {
             awaitUntil("relayed fragments") { fake.sentFrames().isNotEmpty() }
             val relayed = fake.sentFrames()
             assertEquals(1, engine.stats().fragmentsAssembled)
-            assertEquals(forwardedBeforeFragments + 1, engine.stats().forwarded)
+            assertEquals(1L, engine.stats().forwarded)
             assertTrue(relayed.size > 1)
             assertTrue(relayed.all { it.linkId == "l2" })
 
@@ -146,18 +133,23 @@ class RelayEngineFeaturesTest {
     @Test
     fun `unicast for an absent peer is stored and delivered when it connects`() = runBlocking {
         val peerB = "bbbbbbbbbbbbbbbb"
-        val peerC = "dddddddddddddddd"
+        val phoneC = RelayIdentity.generate()
+        val peerC = phoneC.peerId
+        val identity = RelayIdentity.generate()
         val fake = FakeRelayTransport()
         val engine = RelayEngine(
-            myPeerId = "cccccccccccccccc",
+            myPeerId = identity.peerId,
             transport = fake,
             scope = scope,
+            identity = identity,
             fragmentSendDelayMs = 0,
         )
 
         engine.start()
         try {
             fake.linkUp("l1")
+            awaitUntil("relay announcement") { engine.stats().announcementsSent == 1L }
+            fake.clearSentFrames()
 
             val forC = packet(
                 type = MessageType.MESSAGE,
@@ -171,13 +163,7 @@ class RelayEngineFeaturesTest {
             assertEquals(0, fake.sentFrames().size)
 
             fake.linkUp("l2")
-            val bind = packet(
-                type = MessageType.MESSAGE,
-                sender = peerC,
-                recipient = null,
-                ttl = 5u,
-                payload = byteArrayOf(7),
-            )
+            val bind = phoneC.signedAnnouncement("phone", 7u)
             fake.receive("l2", bind.toBinaryData()!!)
             awaitUntil("store-and-forward delivery") { engine.stats().storeFlushed == 1L }
             assertTrue(fake.sentFrames().any { it.linkId == "l2" })

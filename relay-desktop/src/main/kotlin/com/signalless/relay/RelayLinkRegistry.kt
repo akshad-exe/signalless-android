@@ -3,7 +3,7 @@ package com.signalless.relay
 /**
  * One connected phone link.
  *
- * [peerId] is learned from the packet sender field, not from a MAC address or
+ * [peerId] is learned from a verified direct ANNOUNCE, not from a MAC address or
  * an advertisement hint. A link can exist before its peer ID is known.
  */
 data class RelayLink(

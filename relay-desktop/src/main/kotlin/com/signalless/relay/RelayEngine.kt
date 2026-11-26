@@ -205,12 +205,6 @@ class RelayEngine(
             return
         }
 
-        val previousPeer = links.peerFor(linkId)
-        links.bindPeer(linkId, senderId)
-        if (previousPeer != senderId) {
-            flushPending(senderId)
-        }
-
         if (packet.type == MessageType.ANNOUNCE.value && identity != null) {
             val verified = AnnouncementIdentityValidator.verify(packet, senderId, clock()) {
                     signature, signedData, publicKey ->
@@ -220,6 +214,16 @@ class RelayEngine(
                 counters.announcementsRejected.incrementAndGet()
                 SLog.w(TAG, "rejected an invalid ANNOUNCE")
                 return
+            }
+            // Only a verified ANNOUNCE at full TTL names the neighbour on this link.
+            // shortcut: TTL is unsigned, so a neighbour can replay a fresh announcement;
+            // binding to a Noise handshake would close that.
+            if (packet.ttl == DEFAULT_ANNOUNCE_TTL) {
+                val previousPeer = links.peerFor(linkId)
+                links.bindPeer(linkId, senderId)
+                if (previousPeer != senderId) {
+                    flushPending(senderId)
+                }
             }
         }
 
@@ -264,19 +268,21 @@ class RelayEngine(
 
         val relayTtl = minOf(packet.ttl, maxTtl)
         val relayed = packet.copy(ttl = (relayTtl - 1u).toUByte())
-        val targets = targetsFor(relayed, ingressLinkId)
-        if (targets.isEmpty()) {
-            val recipient = relayed.recipientID
-            if (recipient != null && !recipient.contentEquals(SpecialRecipients.BROADCAST)) {
-                if (pendingStore.store(recipient.toHexString(), relayed)) {
-                    counters.stored.incrementAndGet()
-                } else {
-                    counters.storeRejected.incrementAndGet()
-                }
-                counters.noRoute.incrementAndGet()
+        var targets = targetsFor(relayed, ingressLinkId)
+        val recipient = relayed.recipientID
+        if (targets.isEmpty() && recipient != null &&
+            !recipient.contentEquals(SpecialRecipients.BROADCAST)
+        ) {
+            if (pendingStore.store(recipient.toHexString(), relayed)) {
+                counters.stored.incrementAndGet()
             } else {
-                counters.noRoute.incrementAndGet()
+                counters.storeRejected.incrementAndGet()
             }
+            // Not a direct neighbour: it may still be reachable behind another phone.
+            targets = links.allExcept(ingressLinkId)
+        }
+        if (targets.isEmpty()) {
+            counters.noRoute.incrementAndGet()
             return
         }
 
