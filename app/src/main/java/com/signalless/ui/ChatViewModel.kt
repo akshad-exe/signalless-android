@@ -1467,10 +1467,6 @@ class ChatViewModel(
         verificationHandler.didReceiveVerifyResponse(peerID, payload)
     }
 
-    override fun didReceiveCallSignal(peerID: String, payload: ByteArray, receivedAtMs: Long) {
-        callController.onRemote(peerID, payload, receivedAtMs)
-    }
-
     override fun didResolvePrivateMediaPolicy(peerID: String) {
         mediaSendingManager.retryPendingPrivateMedia(peerID)
     }

@@ -167,11 +167,13 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                 }
 
                 com.signalless.app.model.NoisePayloadType.CALL_SIGNAL -> {
-                    delegate?.onCallSignalReceived(peerID, noisePayload.data)
+                    // Straight to the call service: calls must work with no UI attached.
+                    com.signalless.app.service.CallService.deliverSignal(appContext, peerID, noisePayload.data)
                 }
 
-                // Delivered to the call service in a later change; dropped until then.
-                com.signalless.app.model.NoisePayloadType.CALL_AUDIO -> Unit
+                com.signalless.app.model.NoisePayloadType.CALL_AUDIO -> {
+                    com.signalless.app.service.CallService.deliverAudio(peerID, noisePayload.data)
+                }
 
                 com.signalless.app.model.NoisePayloadType.VOICE_FRAME -> {
                     return LiveVoiceManager.getInstance(appContext).handleFrame(
@@ -758,5 +760,4 @@ interface MessageHandlerDelegate {
     fun onReadReceiptReceived(messageID: String, peerID: String)
     fun onVerifyChallengeReceived(peerID: String, payload: ByteArray, timestampMs: Long)
     fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long)
-    fun onCallSignalReceived(peerID: String, payload: ByteArray) {}
 }

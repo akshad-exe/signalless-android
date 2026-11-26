@@ -54,44 +54,6 @@ class CallSessionTest {
     }
 
     @Test
-    fun `detached call signals are replayed in order and stale ones are dropped`() {
-        val router = CallSignalRouter(maxAgeMs = 45_000L)
-        val invite = CallSignal(CallAction.INVITE, lowId).encode()
-        val hangup = CallSignal(CallAction.HANGUP, lowId).encode()
-        assertEquals(CallAction.INVITE, router.deliver(alice, invite, 1_000L))
-        assertEquals(CallAction.HANGUP, router.deliver(alice, hangup, 2_000L))
-        assertNull(router.deliver(alice, byteArrayOf(0x01), 2_100L))
-
-        val live = mutableListOf<Triple<String, ByteArray, Long>>()
-        val sink = CallSignalSink { peerID, payload, receivedAtMs ->
-            live.add(Triple(peerID, payload.copyOf(), receivedAtMs))
-        }
-        assertEquals(listOf(alice), router.onDelegateChanged(sink, 3_000L))
-        assertEquals(2, live.size)
-        assertArrayEquals(invite, live[0].second)
-        assertEquals(1_000L, live[0].third)
-        assertArrayEquals(hangup, live[1].second)
-        assertEquals(2_000L, live[1].third)
-
-        val accept = CallSignal(CallAction.ACCEPT, highId).encode()
-        assertNull(router.deliver(bob, accept, 4_000L))
-        assertEquals(bob, live[2].first)
-        assertArrayEquals(accept, live[2].second)
-        assertEquals(4_000L, live[2].third)
-
-        assertTrue(router.onDelegateChanged(null, 5_000L).isEmpty())
-        val lateInvite = CallSignal(CallAction.INVITE, highId).encode()
-        router.deliver(carol, lateInvite, 10_000L)
-        val resumed = mutableListOf<Long>()
-        val released = router.onDelegateChanged(
-            CallSignalSink { _, _, receivedAtMs -> resumed.add(receivedAtMs) },
-            10_000L + 45_000L
-        )
-        assertTrue(resumed.isEmpty())
-        assertEquals(listOf(carol), released)
-    }
-
-    @Test
     fun `call signal uses a dedicated Noise payload type`() {
         val encoded = NoisePayload(
             NoisePayloadType.CALL_SIGNAL,

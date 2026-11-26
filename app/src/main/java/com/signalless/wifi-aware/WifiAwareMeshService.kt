@@ -181,21 +181,6 @@ class WifiAwareMeshService(private val context: Context) : MeshService, Transpor
                 },
                 leavePayloadProvider = {
                     (delegate?.getNickname() ?: myPeerID).toByteArray(Charsets.UTF_8)
-                },
-                onDetachedCall = { peerID, nickname, action ->
-                    com.signalless.app.features.call.MeshCallNotifications.onQueued(
-                        context,
-                        serviceNotificationManager,
-                        peerID,
-                        nickname,
-                        action
-                    )
-                },
-                onCallsFlushed = { peerIDs ->
-                    com.signalless.app.features.call.MeshCallNotifications.onFlushed(
-                        serviceNotificationManager,
-                        peerIDs
-                    )
                 }
             )
         )
