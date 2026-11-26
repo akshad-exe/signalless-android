@@ -165,12 +165,28 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
         context.applicationContext,
         androidx.core.app.NotificationManagerCompat.from(context.applicationContext)
     )
+    private val callSignals = com.signalless.app.features.call.CallSignalRouter()
     
     // Service state management
     private var isActive = false
     
     // Delegate for message callbacks (maintains same interface)
     var delegate: BluetoothMeshDelegate? = null
+        set(value) {
+            field = value
+            val released = callSignals.onDelegateChanged(
+                value?.let { sink ->
+                    com.signalless.app.features.call.CallSignalSink { peerID, payload, receivedAtMs ->
+                        sink.didReceiveCallSignal(peerID, payload, receivedAtMs)
+                    }
+                },
+                System.currentTimeMillis()
+            )
+            com.signalless.app.features.call.MeshCallNotifications.onFlushed(
+                serviceNotificationManager,
+                released
+            )
+        }
     
     // Coroutines
     // Tracks whether this instance has been terminated via stopServices()
@@ -589,7 +605,19 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
             }
 
             override fun onCallSignalReceived(peerID: String, payload: ByteArray) {
-                delegate?.didReceiveCallSignal(peerID, payload)
+                val action = callSignals.deliver(
+                    peerID,
+                    payload,
+                    System.currentTimeMillis()
+                )
+                val nickname = try { peerManager.getPeerNickname(peerID) } catch (_: Exception) { null }
+                com.signalless.app.features.call.MeshCallNotifications.onQueued(
+                    context,
+                    serviceNotificationManager,
+                    peerID,
+                    nickname,
+                    action
+                )
             }
         }
         

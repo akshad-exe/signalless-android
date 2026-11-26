@@ -128,6 +128,10 @@
   <string name="notification_content_hidden">Open SignalLess to view it</string>
   <string name="notification_channel_direct_messages">Direct Messages</string>
   <string name="notification_channel_direct_messages_description">Notifications for private messages from other users</string>
+  <string name="notification_channel_calls">Mesh calls</string>
+  <string name="notification_channel_calls_description">Incoming calls from nearby SignalLess peers</string>
+  <string name="notification_incoming_call">Incoming mesh call</string>
+  <string name="notification_incoming_call_from">%1$s is calling</string>
   <string name="notification_channel_geohash">Geohash Chats</string>
   <string name="notification_channel_geohash_description">Notifications for mentions and messages in geohash location channels</string>
   <string name="you">You</string>

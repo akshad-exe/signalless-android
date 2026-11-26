@@ -159,14 +159,15 @@ class MeshCallController(
         }
     }
 
-    fun onRemote(peerID: String, payload: ByteArray) {
+    fun onRemote(peerID: String, payload: ByteArray, receivedAtMs: Long = 0L) {
         val signal = CallSignal.decode(payload) ?: return
         scope.launch {
             mutex.withLock {
                 if (connectingPeer == peerID && signal.action == CallAction.INVITE) {
                     connectingPeer = null
                 }
-                applyLocked { session.onRemote(peerID, signal, clock()) }
+                val atMs = if (receivedAtMs > 0L) receivedAtMs else clock()
+                applyLocked { session.onRemote(peerID, signal, atMs) }
             }
         }
     }

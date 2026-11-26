@@ -39,7 +39,9 @@ Not yet done:
   best-effort by design; the voice note sent on release is the reliable path.
 - **Mesh calls.** In an encrypted direct chat, a call opens the microphone and
   streams those same live voice frames in both directions. SignalLess peers
-  only; other clients ignore the call signal. This is not a cellular or WebRTC call.
+  only; other clients ignore the call signal. An incoming call that arrives
+  while the app is in the background posts a notification and is shown again
+  when the app returns. This is not a cellular or WebRTC call.
 - **Location channels.** Geohash-based rooms over Nostr.
 - **Tor.** Embedded Arti client for private internet access.
 - **Emergency wipe.** Triple-tap clears all local data.

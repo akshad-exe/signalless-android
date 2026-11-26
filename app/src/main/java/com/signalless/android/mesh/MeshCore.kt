@@ -76,7 +76,9 @@ class MeshCore(
         val readReceiptInterceptor: ((String, String) -> Boolean)? = null,
         val onReadReceiptSent: ((String) -> Unit)? = null,
         val announcementNicknameProvider: (() -> String?)? = null,
-        val leavePayloadProvider: (() -> ByteArray)? = null
+        val leavePayloadProvider: (() -> ByteArray)? = null,
+        val onDetachedCall: ((peerID: String, nickname: String?, action: com.signalless.app.features.call.CallAction?) -> Unit)? = null,
+        val onCallsFlushed: ((peerIDs: List<String>) -> Unit)? = null
     )
 
     private val peerManager = PeerManager()
@@ -157,12 +159,25 @@ class MeshCore(
     private data class VoiceFrameRequest(val recipientPeerID: String?, val payload: ByteArray)
     private val voiceFrameQueue = Channel<VoiceFrameRequest>(capacity = 128)
     private val directPeers = ConcurrentHashMap.newKeySet<String>()
+    private val callSignals = com.signalless.app.features.call.CallSignalRouter()
 
     val gossipSyncManager: GossipSyncManager =
         sharedGossipManager ?: GossipSyncManager(myPeerID = myPeerID, scope = scope, configProvider = gossipConfigProvider)
     private val ownsGossipManager: Boolean = sharedGossipManager == null
 
     var delegate: MeshDelegate? = null
+        set(value) {
+            field = value
+            val released = callSignals.onDelegateChanged(
+                value?.let { sink ->
+                    com.signalless.app.features.call.CallSignalSink { peerID, payload, receivedAtMs ->
+                        sink.didReceiveCallSignal(peerID, payload, receivedAtMs)
+                    }
+                },
+                System.currentTimeMillis()
+            )
+            hooks.onCallsFlushed?.invoke(released)
+        }
 
     private var isActive = false
 
@@ -481,7 +496,15 @@ class MeshCore(
             }
 
             override fun onCallSignalReceived(peerID: String, payload: ByteArray) {
-                delegate?.didReceiveCallSignal(peerID, payload)
+                val action = callSignals.deliver(
+                    peerID,
+                    payload,
+                    System.currentTimeMillis()
+                )
+                if (action != null) {
+                    val nickname = try { getPeerNickname(peerID) } catch (_: Exception) { null }
+                    hooks.onDetachedCall?.invoke(peerID, nickname, action)
+                }
             }
         }
 

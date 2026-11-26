@@ -44,6 +44,7 @@ class NotificationManager(
     companion object {
         private const val TAG = "NotificationManager"
         private const val CHANNEL_ID = "SignalLess_dm_notifications"
+        private const val CALL_CHANNEL_ID = "SignalLess_call_notifications"
         private const val GEOHASH_CHANNEL_ID = "SignalLess_geohash_notifications"
         private const val GROUP_KEY_DM = "SignalLess_dm_group"
         private const val GROUP_KEY_GEOHASH = "SignalLess_geohash_group"
@@ -59,6 +60,8 @@ class NotificationManager(
         const val EXTRA_PEER_ID = "peer_id"
         const val EXTRA_SENDER_NICKNAME = "sender_nickname"
         const val EXTRA_GEOHASH = "geohash"
+
+        fun callNotificationId(peerID: String): Int = "call:$peerID".hashCode()
         const val ACTION_REPLY_TO_CONVERSATION =
             "com.signalless.app.action.REPLY_TO_CONVERSATION"
         const val ACTION_MARK_CONVERSATION_READ =
@@ -137,6 +140,20 @@ class NotificationManager(
                 setShowBadge(true)
             }
             systemNotificationManager.createNotificationChannel(dmChannel)
+
+            val callName = context.getString(R.string.notification_channel_calls)
+            val callDescription =
+                context.getString(R.string.notification_channel_calls_description)
+            val callChannel = NotificationChannel(
+                CALL_CHANNEL_ID,
+                callName,
+                AndroidNotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = callDescription
+                enableVibration(true)
+                setShowBadge(true)
+            }
+            systemNotificationManager.createNotificationChannel(callChannel)
 
             // Geohash notifications channel
             val geohashName = context.getString(R.string.notification_channel_geohash)
@@ -373,6 +390,40 @@ class NotificationManager(
             .setIntent(Intent(contentIntent).apply { action = Intent.ACTION_VIEW })
             .build()
         ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
+    }
+
+    fun showIncomingCallNotification(peerID: String, senderNickname: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_PRIVATE_CHAT, true)
+            putExtra(EXTRA_PEER_ID, peerID)
+            putExtra(EXTRA_SENDER_NICKNAME, senderNickname)
+        }
+        val notificationId = callNotificationId(peerID)
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val builder = NotificationCompat.Builder(context, CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notification_incoming_call))
+            .setContentText(
+                context.getString(R.string.notification_incoming_call_from, senderNickname)
+            )
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
+        notifySafely(notificationId, builder.build())
+    }
+
+    fun cancelIncomingCallNotification(peerID: String) {
+        notificationManager.cancel(callNotificationId(peerID))
     }
 
     fun showVerificationNotification(title: String, body: String, peerID: String? = null) {

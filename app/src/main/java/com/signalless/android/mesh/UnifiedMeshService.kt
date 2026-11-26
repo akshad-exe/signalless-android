@@ -430,8 +430,8 @@ class UnifiedMeshService(
         delegate?.didReceiveVerifyResponse(peerID, payload, timestampMs)
     }
 
-    override fun didReceiveCallSignal(peerID: String, payload: ByteArray) {
-        delegate?.didReceiveCallSignal(peerID, payload)
+    override fun didReceiveCallSignal(peerID: String, payload: ByteArray, receivedAtMs: Long) {
+        delegate?.didReceiveCallSignal(peerID, payload, receivedAtMs)
     }
 
     override fun didResolvePrivateMediaPolicy(peerID: String) {
