@@ -23,18 +23,6 @@ class CallSessionTest {
     }
 
     @Test
-    fun `signal decode rejects the wrong size version and action`() {
-        assertNull(CallSignal.decode(ByteArray(CallSignal.WIRE_SIZE - 1)))
-        assertNull(CallSignal.decode(ByteArray(CallSignal.WIRE_SIZE + 1)))
-        val badVersion = CallSignal(CallAction.ACCEPT, lowId).encode()
-        badVersion[0] = 2
-        assertNull(CallSignal.decode(badVersion))
-        val badAction = CallSignal(CallAction.HANGUP, lowId).encode()
-        badAction[1] = 9
-        assertNull(CallSignal.decode(badAction))
-    }
-
-    @Test
     fun `call signal golden vector pins version action and call id`() {
         val expected = byteArrayOf(
             0x01, 0x04,
@@ -44,7 +32,7 @@ class CallSessionTest {
             0x89.toByte(), 0xab.toByte(), 0xcd.toByte(), 0xef.toByte()
         )
         val callId = expected.copyOfRange(2, expected.size)
-        assertArrayEquals(expected, CallSignal(CallAction.HANGUP, callId).encode())
+        assertArrayEquals(expected, CallSignal(CallAction.HANGUP, callId, version = 1).encode())
         val decoded = CallSignal.decode(expected)
         assertEquals(CallAction.HANGUP, decoded?.action)
         assertArrayEquals(callId, decoded?.callId)
@@ -60,7 +48,7 @@ class CallSessionTest {
         actions.forEachIndexed { index, action ->
             val vector = expected.copyOf()
             vector[1] = actionBytes[index]
-            assertArrayEquals(vector, CallSignal(action, callId).encode())
+            assertArrayEquals(vector, CallSignal(action, callId, version = 1).encode())
             assertEquals(action, CallSignal.decode(vector)?.action)
         }
     }

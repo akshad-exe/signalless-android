@@ -24,6 +24,8 @@ class CallSession(
     private var phaseEnteredAtMs = 0L
     private var connectedAtMs: Long? = null
     private var endReason: CallEndReason? = null
+    /** Version to answer in: a version 1 caller cannot decode version 2. */
+    private var replyVersion = CallSignal.VERSION_2
 
     fun snapshot(): Snapshot = Snapshot(
         phase = phase,
@@ -42,6 +44,7 @@ class CallSession(
         phaseEnteredAtMs = nowMs
         connectedAtMs = null
         endReason = null
+        replyVersion = CallSignal.VERSION_2
         return listOf(Effect(peerID, CallSignal(CallAction.INVITE, newCallId.copyOf())))
     }
 
@@ -53,7 +56,7 @@ class CallSession(
         connectedAtMs = nowMs
         phaseEnteredAtMs = nowMs
         endReason = null
-        return listOf(Effect(peer, CallSignal(CallAction.ACCEPT, id.copyOf())))
+        return listOf(Effect(peer, CallSignal(CallAction.ACCEPT, id.copyOf(), replyVersion)))
     }
 
     fun decline(nowMs: Long): List<Effect> {
@@ -98,6 +101,8 @@ class CallSession(
                 }
                 emptyList()
             }
+            CallAction.RINGING, CallAction.HOLD, CallAction.RESUME, CallAction.PATH_PROBE,
+            CallAction.PATH_SWITCH, CallAction.KEEPALIVE -> emptyList()
         }
     }
 
@@ -130,6 +135,7 @@ class CallSession(
             peerID = fromPeerID
             callId = signal.callId.copyOf()
             phase = CallPhase.INCOMING
+            replyVersion = signal.version
             phaseEnteredAtMs = nowMs
             connectedAtMs = null
             endReason = null
@@ -144,7 +150,7 @@ class CallSession(
             return emptyList()
         }
         if (fromPeerID == peerID) return emptyList()
-        return listOf(Effect(fromPeerID, CallSignal(CallAction.BUSY, signal.callId.copyOf())))
+        return listOf(Effect(fromPeerID, CallSignal(CallAction.BUSY, signal.callId.copyOf(), signal.version)))
     }
 
     private fun matches(fromPeerID: String, signal: CallSignal): Boolean {
@@ -157,7 +163,7 @@ class CallSession(
         val id = callId ?: return emptyList()
         end(reason)
         phaseEnteredAtMs = nowMs
-        return listOf(Effect(peer, CallSignal(action, id.copyOf())))
+        return listOf(Effect(peer, CallSignal(action, id.copyOf(), replyVersion)))
     }
 
     private fun end(reason: CallEndReason) {
