@@ -4,8 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main, develop]
+    paths-ignore: ["**.md"]
   pull_request:
     branches: [main, develop]
+    paths-ignore: ["**.md"]
 
 permissions:
   contents: read
@@ -22,6 +24,7 @@ jobs:
   verify:
     name: Test, lint and debug APK
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -39,14 +42,10 @@ jobs:
       - name: Verify native library inputs
         run: tools/arti-build/verify-checksums.sh
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest :relay-desktop:test --build-cache
-
-      - name: Run lint
-        run: ./gradlew lintDebug --build-cache
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --build-cache
+      # One Gradle invocation shares configuration and runs tasks in parallel.
+      # relay-desktop is tested by relay-desktop.yml when its inputs change.
+      - name: Unit tests, lint and debug APK
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --build-cache --continue
 
       - name: Upload debug APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
