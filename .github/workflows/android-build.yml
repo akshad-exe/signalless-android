@@ -39,6 +39,15 @@ jobs:
       - name: Set up and validate Gradle
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
 
+      # Robolectric downloads Android runtimes itself, outside the Gradle cache,
+      # and Maven Central sometimes refuses GitHub runners.
+      - name: Cache Robolectric runtimes
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml', 'app/src/test/**/*.kt') }}
+          restore-keys: robolectric-
+
       - name: Verify native library inputs
         run: tools/arti-build/verify-checksums.sh
 
@@ -96,7 +105,16 @@ jobs:
           cache-disabled: true
 
       - name: Build canonical unsigned release
-        run: tools/reproducible-builds/build-in-container.sh "$RUNNER_TEMP/release-${{ matrix.replica }}"
+        # Maven Central intermittently refuses runners during dependency resolution.
+        run: |
+          output="$RUNNER_TEMP/release-${{ matrix.replica }}"
+          for attempt in 1 2 3; do
+            rm -rf "$output"
+            tools/reproducible-builds/build-in-container.sh "$output" && exit 0
+            echo "::warning::build attempt $attempt failed"
+            sleep $((attempt * 60))
+          done
+          exit 1
 
       - name: Upload build replica
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
