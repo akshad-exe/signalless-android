@@ -46,6 +46,36 @@ class CallSignalV2Test {
     }
 
     @Test
+    fun `both sides settle on the shared codec`() {
+        val both = CallCodec.OPUS.mask or CallCodec.AAC_LC.mask
+        listOf(both to CallCodec.OPUS, CallCodec.AAC_LC.mask to CallCodec.AAC_LC).forEach { (calleeMask, expected) ->
+            val caller = CallSession(localCodecMask = both)
+            val callee = CallSession(localCodecMask = calleeMask)
+            val invite = caller.place("bbbbbbbbbbbbbbbb", callId, 0L).single().signal
+            callee.onRemote("aaaaaaaaaaaaaaaa", invite, 1L)
+            val accept = callee.accept(2L).single().signal
+            caller.onRemote("bbbbbbbbbbbbbbbb", accept, 3L)
+            assertEquals(expected, caller.snapshot().codec)
+            assertEquals(expected, callee.snapshot().codec)
+        }
+    }
+
+    @Test
+    fun `hold lasts until every side resumes`() {
+        val alice = "aaaaaaaaaaaaaaaa"
+        val session = CallSession()
+        session.onRemote(alice, CallSignal(CallAction.INVITE, callId), 0L)
+        assertEquals(emptyList<CallSession.Effect>(), session.hold(true))
+        session.accept(1L)
+        assertEquals(CallAction.HOLD, session.hold(true).single().signal.action)
+        session.onRemote(alice, CallSignal(CallAction.HOLD, callId), 2L)
+        assertEquals(CallAction.RESUME, session.hold(false).single().signal.action)
+        assertEquals(true, session.snapshot().onHold)
+        session.onRemote(alice, CallSignal(CallAction.RESUME, callId), 3L)
+        assertEquals(false, session.snapshot().onHold)
+    }
+
+    @Test
     fun `mismatched length version and action are rejected`() {
         assertNull(CallSignal.decode(vector(1).copyOf(CallSignal.V1_SIZE)))
         assertNull(CallSignal.decode(byteArrayOf(0x01, 0x01) + callId + ByteArray(3)))

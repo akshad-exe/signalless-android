@@ -60,12 +60,32 @@ fun MeshCallDialog(viewModel: ChatViewModel) {
     if (!state.visible) return
 
     Dialog(onDismissRequest = viewModel::dismissCall) {
-        MeshCallCard(state = state, viewModel = viewModel)
+        MeshCallCard(
+            state = state,
+            actions = CallUiActions(
+                dismiss = viewModel::dismissCall,
+                accept = viewModel::acceptCall,
+                decline = viewModel::declineCall,
+                hangup = viewModel::hangupCall,
+                setMuted = viewModel::setCallMuted,
+                setSpeaker = viewModel::setCallSpeaker
+            )
+        )
     }
 }
 
+/** What the call card can ask for, from the chat screen or the incoming-call screen. */
+internal class CallUiActions(
+    val dismiss: () -> Unit,
+    val accept: () -> Unit,
+    val decline: () -> Unit,
+    val hangup: () -> Unit,
+    val setMuted: (Boolean) -> Unit,
+    val setSpeaker: (Boolean) -> Unit
+)
+
 @Composable
-private fun MeshCallCard(state: MeshCallState, viewModel: ChatViewModel) {
+internal fun MeshCallCard(state: MeshCallState, actions: CallUiActions) {
     val colorScheme = MaterialTheme.colorScheme
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -93,7 +113,7 @@ private fun MeshCallCard(state: MeshCallState, viewModel: ChatViewModel) {
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(28.dp))
-            CallActions(state = state, viewModel = viewModel)
+            CallActions(state = state, actions = actions)
         }
     }
 }
@@ -136,11 +156,11 @@ private fun callDuration(connectedAtMs: Long?): String {
 }
 
 @Composable
-private fun CallActions(state: MeshCallState, viewModel: ChatViewModel) {
+private fun CallActions(state: MeshCallState, actions: CallUiActions) {
     when {
         state.endReason != null || state.connecting -> {
             CallActionButton(
-                onClick = viewModel::dismissCall,
+                onClick = actions.dismiss,
                 icon = Icons.Filled.CallEnd,
                 contentDescription = stringResource(R.string.cd_end_call),
                 container = MaterialTheme.colorScheme.error,
@@ -150,14 +170,14 @@ private fun CallActions(state: MeshCallState, viewModel: ChatViewModel) {
         state.phase == CallPhase.INCOMING -> {
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 CallActionButton(
-                    onClick = viewModel::declineCall,
+                    onClick = actions.decline,
                     icon = Icons.Filled.CallEnd,
                     contentDescription = stringResource(R.string.cd_decline_call),
                     container = MaterialTheme.colorScheme.error,
                     content = MaterialTheme.colorScheme.onError
                 )
                 CallActionButton(
-                    onClick = viewModel::acceptCall,
+                    onClick = actions.accept,
                     icon = Icons.Filled.Call,
                     contentDescription = stringResource(R.string.cd_accept_call),
                     container = MaterialTheme.colorScheme.primary,
@@ -171,7 +191,7 @@ private fun CallActions(state: MeshCallState, viewModel: ChatViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CallActionButton(
-                    onClick = { viewModel.setCallMuted(!state.muted) },
+                    onClick = { actions.setMuted(!state.muted) },
                     icon = if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic,
                     contentDescription = stringResource(
                         if (state.muted) R.string.cd_unmute_call else R.string.cd_mute_call
@@ -180,14 +200,14 @@ private fun CallActions(state: MeshCallState, viewModel: ChatViewModel) {
                     content = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 CallActionButton(
-                    onClick = viewModel::hangupCall,
+                    onClick = actions.hangup,
                     icon = Icons.Filled.CallEnd,
                     contentDescription = stringResource(R.string.cd_end_call),
                     container = MaterialTheme.colorScheme.error,
                     content = MaterialTheme.colorScheme.onError
                 )
                 CallActionButton(
-                    onClick = { viewModel.setCallSpeaker(!state.speakerOn) },
+                    onClick = { actions.setSpeaker(!state.speakerOn) },
                     icon = if (state.speakerOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
                     contentDescription = stringResource(
                         if (state.speakerOn) R.string.cd_call_earpiece else R.string.cd_call_speaker
@@ -199,7 +219,7 @@ private fun CallActions(state: MeshCallState, viewModel: ChatViewModel) {
         }
         else -> {
             CallActionButton(
-                onClick = viewModel::hangupCall,
+                onClick = actions.hangup,
                 icon = Icons.Filled.CallEnd,
                 contentDescription = stringResource(R.string.cd_end_call),
                 container = MaterialTheme.colorScheme.error,

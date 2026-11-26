@@ -6,14 +6,19 @@ package com.signalless.app.features.call
  * the current call unchanged.
  */
 class CallSession(
-    private val ringTimeoutMs: Long = RING_TIMEOUT_MS
+    private val ringTimeoutMs: Long = RING_TIMEOUT_MS,
+    private val localCodecMask: Int = CallCodec.AAC_LC.mask
 ) {
     class Snapshot(
         val phase: CallPhase,
         val peerID: String?,
         val callId: ByteArray?,
         val connectedAtMs: Long?,
-        val endReason: CallEndReason?
+        val endReason: CallEndReason?,
+        /** Negotiated codec, known once the peer's invite or accept arrived. */
+        val codec: CallCodec? = null,
+        /** True while either side has the call on hold. */
+        val onHold: Boolean = false
     )
 
     data class Effect(val peerID: String, val signal: CallSignal)
@@ -26,14 +31,36 @@ class CallSession(
     private var endReason: CallEndReason? = null
     /** Version to answer in: a version 1 caller cannot decode version 2. */
     private var replyVersion = CallSignal.VERSION_2
+    private var remoteCodecMask = CallCodec.AAC_LC.mask
+    private var localHold = false
+    private var remoteHold = false
 
     fun snapshot(): Snapshot = Snapshot(
         phase = phase,
         peerID = peerID,
         callId = callId?.copyOf(),
         connectedAtMs = connectedAtMs,
-        endReason = endReason
+        endReason = endReason,
+        codec = if (phase == CallPhase.ACTIVE) {
+            VoiceCodecs.negotiate(localCodecMask, remoteCodecMask) ?: CallCodec.AAC_LC
+        } else null,
+        onHold = localHold || remoteHold
     )
+
+    /** Holds or resumes this side, for example while a cellular call is answered. */
+    fun hold(held: Boolean): List<Effect> {
+        if (phase != CallPhase.ACTIVE || localHold == held) return emptyList()
+        val peer = peerID ?: return emptyList()
+        val id = callId ?: return emptyList()
+        localHold = held
+        // A version 1 peer has no hold signal; its audio just goes quiet.
+        if (replyVersion == CallSignal.VERSION_1) return emptyList()
+        val action = if (held) CallAction.HOLD else CallAction.RESUME
+        return listOf(Effect(peer, signal(action, id)))
+    }
+
+    private fun signal(action: CallAction, id: ByteArray) =
+        CallSignal(action, id.copyOf(), replyVersion, codecMask = localCodecMask)
 
     fun place(peerID: String, newCallId: ByteArray, nowMs: Long): List<Effect> {
         if (phase != CallPhase.IDLE) return emptyList()
@@ -45,7 +72,9 @@ class CallSession(
         connectedAtMs = null
         endReason = null
         replyVersion = CallSignal.VERSION_2
-        return listOf(Effect(peerID, CallSignal(CallAction.INVITE, newCallId.copyOf())))
+        remoteCodecMask = CallCodec.AAC_LC.mask
+        clearHold()
+        return listOf(Effect(peerID, signal(CallAction.INVITE, newCallId)))
     }
 
     fun accept(nowMs: Long): List<Effect> {
@@ -56,7 +85,7 @@ class CallSession(
         connectedAtMs = nowMs
         phaseEnteredAtMs = nowMs
         endReason = null
-        return listOf(Effect(peer, CallSignal(CallAction.ACCEPT, id.copyOf(), replyVersion)))
+        return listOf(Effect(peer, signal(CallAction.ACCEPT, id)))
     }
 
     fun decline(nowMs: Long): List<Effect> {
@@ -76,6 +105,7 @@ class CallSession(
             CallAction.INVITE -> onInvite(fromPeerID, signal, nowMs)
             CallAction.ACCEPT -> {
                 if (matches(fromPeerID, signal) && phase == CallPhase.OUTGOING) {
+                    remoteCodecMask = signal.codecMask
                     phase = CallPhase.ACTIVE
                     connectedAtMs = nowMs
                     phaseEnteredAtMs = nowMs
@@ -101,7 +131,13 @@ class CallSession(
                 }
                 emptyList()
             }
-            CallAction.RINGING, CallAction.HOLD, CallAction.RESUME, CallAction.PATH_PROBE,
+            CallAction.HOLD, CallAction.RESUME -> {
+                if (matches(fromPeerID, signal) && phase == CallPhase.ACTIVE) {
+                    remoteHold = signal.action == CallAction.HOLD
+                }
+                emptyList()
+            }
+            CallAction.RINGING, CallAction.PATH_PROBE,
             CallAction.PATH_SWITCH, CallAction.KEEPALIVE -> emptyList()
         }
     }
@@ -136,6 +172,8 @@ class CallSession(
             callId = signal.callId.copyOf()
             phase = CallPhase.INCOMING
             replyVersion = signal.version
+            remoteCodecMask = signal.codecMask
+            clearHold()
             phaseEnteredAtMs = nowMs
             connectedAtMs = null
             endReason = null
@@ -143,6 +181,7 @@ class CallSession(
         }
         if (fromPeerID == peerID && phase == CallPhase.OUTGOING) {
             callId = lesserCallId(callId, signal.callId)
+            remoteCodecMask = signal.codecMask
             phase = CallPhase.ACTIVE
             connectedAtMs = nowMs
             phaseEnteredAtMs = nowMs
@@ -163,10 +202,16 @@ class CallSession(
         val id = callId ?: return emptyList()
         end(reason)
         phaseEnteredAtMs = nowMs
-        return listOf(Effect(peer, CallSignal(action, id.copyOf(), replyVersion)))
+        return listOf(Effect(peer, signal(action, id)))
+    }
+
+    private fun clearHold() {
+        localHold = false
+        remoteHold = false
     }
 
     private fun end(reason: CallEndReason) {
+        clearHold()
         phase = CallPhase.IDLE
         endReason = reason
         callId = null

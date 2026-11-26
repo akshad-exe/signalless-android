@@ -44,6 +44,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Location foreground service type required for BLE scanning in background -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Mesh voice calls -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     
     <!-- Microphone for voice notes -->
@@ -128,6 +133,21 @@
                 <data android:scheme="signalless" android:host="verify" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.IncomingCallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.SignalLessAndroid"
+            tools:targetApi="27" />
+
+        <service
+            android:name=".service.CallService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone" />
 
         <!-- Persistent foreground service to run the mesh in background -->
         <service

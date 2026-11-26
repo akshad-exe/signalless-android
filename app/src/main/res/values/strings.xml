@@ -383,6 +383,7 @@
   <string name="cd_call_speaker">Use speaker</string>
   <string name="cd_call_earpiece">Use earpiece</string>
   <string name="call_mesh_peer">Mesh peer</string>
+  <string name="call_ongoing_channel">Ongoing call</string>
   <string name="call_securing">Securing the mesh session…</string>
   <string name="call_outgoing">Calling…</string>
   <string name="call_incoming">Incoming mesh call</string>

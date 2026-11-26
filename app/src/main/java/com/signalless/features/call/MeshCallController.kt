@@ -31,7 +31,8 @@ data class MeshCallState(
     val muted: Boolean = false,
     val speakerOn: Boolean = false,
     val needsMicrophone: Boolean = false,
-    val connecting: Boolean = false
+    val connecting: Boolean = false,
+    val onHold: Boolean = false
 ) {
     val visible: Boolean
         get() = connecting || phase != CallPhase.IDLE || endReason != null
