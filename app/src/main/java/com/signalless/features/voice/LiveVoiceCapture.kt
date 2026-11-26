@@ -45,7 +45,8 @@ internal class LiveVoiceCapture(
     private val target: LiveVoiceTarget,
     private val burstID: ByteArray = VoiceBurstPacket.makeBurstID(),
     /** Debug Mesh Lab uses a deterministic tone so physical tests never capture ambient audio. */
-    private val syntheticPcm: Boolean = false
+    private val syntheticPcm: Boolean = false,
+    private val audioSource: Int = MediaRecorder.AudioSource.MIC
 ) {
     companion object {
         private const val TAG = "LiveVoiceCapture"
@@ -121,7 +122,7 @@ internal class LiveVoiceCapture(
                 )
                 if (minBuffer <= 0) error("AudioRecord buffer unavailable: $minBuffer")
                 AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
+                    audioSource,
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,

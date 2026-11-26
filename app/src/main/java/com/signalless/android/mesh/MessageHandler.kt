@@ -166,6 +166,10 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     }
                 }
 
+                com.signalless.app.model.NoisePayloadType.CALL_SIGNAL -> {
+                    delegate?.onCallSignalReceived(peerID, noisePayload.data)
+                }
+
                 com.signalless.app.model.NoisePayloadType.VOICE_FRAME -> {
                     return LiveVoiceManager.getInstance(appContext).handleFrame(
                         peerID = peerID,
@@ -751,4 +755,5 @@ interface MessageHandlerDelegate {
     fun onReadReceiptReceived(messageID: String, peerID: String)
     fun onVerifyChallengeReceived(peerID: String, payload: ByteArray, timestampMs: Long)
     fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long)
+    fun onCallSignalReceived(peerID: String, payload: ByteArray) {}
 }

@@ -76,6 +76,26 @@ class ChatViewModel(
         mediaSendingManager.sendVoiceNote(toPeerIDOrNull, channelOrNull, filePath)
     }
 
+    fun placeMeshCall(peerID: String) = callController.place(peerID)
+
+    fun acceptCall() {
+        val peerID = callState.value.peerID
+        callController.accept()
+        if (peerID != null) showPrivateChatSheet(peerID)
+    }
+
+    fun declineCall() = callController.decline()
+
+    fun hangupCall() = callController.hangup()
+
+    fun dismissCall() = callController.hangup()
+
+    fun onCallMicrophoneResult(granted: Boolean) = callController.onMicrophoneResult(granted)
+
+    fun setCallMuted(muted: Boolean) = callController.setMuted(muted)
+
+    fun setCallSpeaker(speakerOn: Boolean) = callController.setSpeaker(speakerOn)
+
     fun createVoiceRecorder(toPeerIDOrNull: String?, channelOrNull: String?): VoiceRecorder {
         val context = getApplication<Application>().applicationContext
         if (!LiveVoicePreferences.isEnabled(context)) return VoiceRecorder(context)
@@ -201,6 +221,26 @@ class ChatViewModel(
         channelManager,
         viewModelScope
     ) { mesh }
+
+    private val callController = com.signalless.app.features.call.MeshCallController(
+        scope = viewModelScope,
+        context = application.applicationContext,
+        hasSession = { peerID -> mesh.hasEstablishedSession(peerID) },
+        requestHandshake = { peerID -> mesh.initiateNoiseHandshake(peerID) },
+        sendSignal = { peerID, payload -> mesh.sendCallSignal(peerID, payload) },
+        sendVoiceFrame = { peerID, payload -> mesh.sendVoiceFrame(peerID, payload) },
+        peerNickname = { peerID ->
+            mesh.getPeerNicknames()[peerID]
+                ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+                .orEmpty()
+        },
+        onActivePeerChanged = { peerID ->
+            com.signalless.app.features.voice.LiveVoiceManager
+                .getInstance(application)
+                .setActiveCallPeer(peerID)
+        }
+    )
+    val callState = callController.state
     
     // Delegate handler for mesh callbacks
     private val meshDelegateHandler = MeshDelegateHandler(
@@ -1427,6 +1467,10 @@ class ChatViewModel(
         verificationHandler.didReceiveVerifyResponse(peerID, payload)
     }
 
+    override fun didReceiveCallSignal(peerID: String, payload: ByteArray) {
+        callController.onRemote(peerID, payload)
+    }
+
     override fun didResolvePrivateMediaPolicy(peerID: String) {
         mediaSendingManager.retryPendingPrivateMedia(peerID)
     }
@@ -1461,6 +1505,7 @@ class ChatViewModel(
 
     private suspend fun performPanicClearAllData() {
         Log.w(TAG, "🚨 PANIC MODE ACTIVATED - Clearing all sensitive data")
+        callController.hangup()
         try {
             com.signalless.app.geohash.LocationChannelManager
                 .getInstance(getApplication())
@@ -1699,6 +1744,10 @@ class ChatViewModel(
      */
     fun handleBackPressed(): Boolean {
         return when {
+            callController.isOngoing() -> {
+                callController.hangup()
+                true
+            }
             // Close app info dialog
             state.getShowAppInfoValue() -> {
                 hideAppInfo()

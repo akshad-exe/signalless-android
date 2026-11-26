@@ -587,6 +587,10 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
             override fun onVerifyResponseReceived(peerID: String, payload: ByteArray, timestampMs: Long) {
                 delegate?.didReceiveVerifyResponse(peerID, payload, timestampMs)
             }
+
+            override fun onCallSignalReceived(peerID: String, payload: ByteArray) {
+                delegate?.didReceiveCallSignal(peerID, payload)
+            }
         }
         
         // PacketProcessor delegates
@@ -1006,6 +1010,15 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
     fun sendVoiceFrame(recipientPeerID: String?, payload: ByteArray) {
         if (payload.isEmpty()) return
         voiceFrameQueue.trySend(VoiceFrameRequest(recipientPeerID, payload.copyOf()))
+    }
+
+    fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
+        if (payload.isEmpty() || !encryptionService.hasEstablishedSession(recipientPeerID)) return
+        sendNoisePayloadToPeer(
+            NoisePayload(NoisePayloadType.CALL_SIGNAL, payload),
+            recipientPeerID,
+            "call signal"
+        )
     }
 
     private fun dispatchVoiceFrame(request: VoiceFrameRequest) {

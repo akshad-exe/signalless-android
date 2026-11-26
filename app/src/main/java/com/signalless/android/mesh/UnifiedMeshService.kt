@@ -190,6 +190,17 @@ class UnifiedMeshService(
         }
     }
 
+    override fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
+        when {
+            isBleReady(recipientPeerID) -> bluetooth.sendCallSignal(recipientPeerID, payload)
+            isWifiReady(recipientPeerID) -> wifiService()?.sendCallSignal(recipientPeerID, payload)
+            isBleConnected(recipientPeerID) || (isBleEnabled() && !isWifiConnected(recipientPeerID)) ->
+                bluetooth.sendCallSignal(recipientPeerID, payload)
+            else -> wifiService()?.sendCallSignal(recipientPeerID, payload)
+                ?: bluetooth.sendCallSignal(recipientPeerID, payload)
+        }
+    }
+
     override fun prepareFilePrivate(
         recipientPeerID: String,
         file: SignalLessFilePacket,
@@ -417,6 +428,10 @@ class UnifiedMeshService(
 
     override fun didReceiveVerifyResponse(peerID: String, payload: ByteArray, timestampMs: Long) {
         delegate?.didReceiveVerifyResponse(peerID, payload, timestampMs)
+    }
+
+    override fun didReceiveCallSignal(peerID: String, payload: ByteArray) {
+        delegate?.didReceiveCallSignal(peerID, payload)
     }
 
     override fun didResolvePrivateMediaPolicy(peerID: String) {

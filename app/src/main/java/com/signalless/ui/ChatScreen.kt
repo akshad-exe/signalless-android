@@ -934,4 +934,6 @@ private fun ChatDialogs(
             }
         )
     }
+
+    MeshCallDialog(viewModel = viewModel)
 }

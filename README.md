@@ -37,7 +37,9 @@ Not yet done:
   the mesh. Slow on BLE; much faster when both peers support Wi-Fi Aware.
 - **Live voice.** Push-to-talk bursts (AAC-LC 16 kHz mono). Half-duplex and
   best-effort by design; the voice note sent on release is the reliable path.
-  This is walkie-talkie, not a voice call.
+- **Mesh calls.** In an encrypted direct chat, a call opens the microphone and
+  streams those same live voice frames in both directions. SignalLess peers
+  only; other clients ignore the call signal. This is not a cellular or WebRTC call.
 - **Location channels.** Geohash-based rooms over Nostr.
 - **Tor.** Embedded Arti client for private internet access.
 - **Emergency wipe.** Triple-tap clears all local data.

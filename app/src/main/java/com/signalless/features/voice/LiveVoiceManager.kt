@@ -144,6 +144,7 @@ class LiveVoiceManager private constructor(private val context: Context) {
     @Volatile private var appForeground = false
     @Volatile private var visibleScope: LiveVoiceScope? = null
     @Volatile private var visiblePeerID: String? = null
+    @Volatile private var activeCallPeerID: String? = null
     private var activePlayer: PttAudioPlayer? = null
 
     init {
@@ -178,6 +179,11 @@ class LiveVoiceManager private constructor(private val context: Context) {
         visiblePeerID = null
     }
 
+    /** While set, this direct peer's live frames play even if push-to-talk is toggled off. */
+    fun setActiveCallPeer(peerID: String?) {
+        activeCallPeerID = peerID
+    }
+
     /** Returns false only when the frame itself violates the live-voice wire/resource contract. */
     @Synchronized
     fun handleFrame(
@@ -188,7 +194,7 @@ class LiveVoiceManager private constructor(private val context: Context) {
         timestampMs: Long
     ): Boolean {
         val packet = VoiceBurstPacket.decode(payload) ?: return false
-        if (!LiveVoicePreferences.isEnabled(context)) return true
+        if (!LiveVoicePreferences.isEnabled(context) && !isActiveCall(peerID, scope)) return true
         val burstHex = VoiceBurstPacket.burstIDHex(packet.burstID)
         val key = AssemblyKey(peerID, scope, burstHex)
         var assembly = assemblies[key]
@@ -469,7 +475,13 @@ class LiveVoiceManager private constructor(private val context: Context) {
     }
 
     private fun canAutoplay(key: AssemblyKey): Boolean =
-        LiveVoicePreferences.isEnabled(context) && appForeground && isVisible(key.scope, key.peerID)
+        appForeground && (
+            isActiveCall(key.peerID, key.scope) ||
+                (LiveVoicePreferences.isEnabled(context) && isVisible(key.scope, key.peerID))
+            )
+
+    private fun isActiveCall(peerID: String, scope: LiveVoiceScope): Boolean =
+        scope == LiveVoiceScope.DIRECT_MESSAGE && peerID == activeCallPeerID
 
     private fun isVisible(scope: LiveVoiceScope, peerID: String): Boolean =
         visibleScope == scope && (scope == LiveVoiceScope.PUBLIC_MESH || visiblePeerID == peerID)
