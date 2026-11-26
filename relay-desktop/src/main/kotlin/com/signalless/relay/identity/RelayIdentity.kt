@@ -5,6 +5,7 @@ import com.signalless.app.model.PeerCapabilities
 import com.signalless.app.noise.NoisePeerIdentity
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SignalLessPacket
+import com.signalless.app.services.meshgraph.GossipTLV
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
@@ -75,6 +76,7 @@ class RelayIdentity(
         nickname: String,
         ttl: UByte,
         timestampMs: Long = System.currentTimeMillis(),
+        neighbors: List<String> = emptyList(),
     ): SignalLessPacket {
         val announcement = IdentityAnnouncement(
             nickname = nickname,
@@ -82,9 +84,11 @@ class RelayIdentity(
             signingPublicKey = signingPublicKey.copyOf(),
             capabilities = PeerCapabilities.NONE,
         )
-        val payload = requireNotNull(announcement.encode()) {
+        var payload = requireNotNull(announcement.encode()) {
             "could not encode relay announcement"
         }
+        // Phones only route through a peer that lists them as neighbours.
+        if (neighbors.isNotEmpty()) payload += GossipTLV.encodeNeighbors(neighbors)
         val packet = SignalLessPacket(
             version = 1u,
             type = MessageType.ANNOUNCE.value,

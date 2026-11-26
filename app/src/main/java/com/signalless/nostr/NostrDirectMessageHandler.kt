@@ -243,7 +243,9 @@ class NostrDirectMessageHandler(
             NoisePayloadType.VERIFY_CHALLENGE,
             NoisePayloadType.VERIFY_RESPONSE,
             NoisePayloadType.VOICE_FRAME,
-            NoisePayloadType.PEER_STATE -> Unit // Peer state is bound to a live mesh Noise generation.
+            NoisePayloadType.CALL_SIGNAL,
+            NoisePayloadType.CALL_AUDIO,
+            NoisePayloadType.PEER_STATE -> Unit // Peer state and mesh calls stay on a live mesh session.
         }
     }
 

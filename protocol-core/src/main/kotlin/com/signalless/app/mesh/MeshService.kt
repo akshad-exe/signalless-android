@@ -22,6 +22,7 @@ interface MeshService {
     fun sendFileBroadcast(file: SignalLessFilePacket)
     fun sendFilePrivate(recipientPeerID: String, file: SignalLessFilePacket)
     fun sendVoiceFrame(recipientPeerID: String?, payload: ByteArray)
+    fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {}
     fun prepareFilePrivate(
         recipientPeerID: String,
         file: SignalLessFilePacket,

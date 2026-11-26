@@ -187,6 +187,9 @@ dependencies {
     // Only included in tor flavor to reduce APK size for standard builds
     // Note: AAR is kept in libs/ for reference, but libraries loaded from jniLibs/
 
+    // Self-managed calls
+    implementation(libs.androidx.core.telecom)
+
     // Google Play Services Location
     implementation(libs.gms.location)
 
@@ -204,10 +207,10 @@ dependencies {
 }
 
 // Robolectric resolves Android runtime jars itself (outside Gradle dependency resolution).
-// Its legacy repo1 endpoint rejects cold GitHub-hosted runners with HTTP 403.
+// Maven Central refuses cold GitHub-hosted runners, so use Google's mirror of it.
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     systemProperty(
         "robolectric.dependency.repo.url",
-        "https://repo.maven.apache.org/maven2"
+        "https://maven-central.storage-download.googleapis.com/maven2"
     )
 }

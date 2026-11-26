@@ -166,6 +166,15 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     }
                 }
 
+                com.signalless.app.model.NoisePayloadType.CALL_SIGNAL -> {
+                    // Straight to the call service: calls must work with no UI attached.
+                    com.signalless.app.service.CallService.deliverSignal(appContext, peerID, noisePayload.data)
+                }
+
+                com.signalless.app.model.NoisePayloadType.CALL_AUDIO -> {
+                    com.signalless.app.service.CallService.deliverAudio(peerID, noisePayload.data)
+                }
+
                 com.signalless.app.model.NoisePayloadType.VOICE_FRAME -> {
                     return LiveVoiceManager.getInstance(appContext).handleFrame(
                         peerID = peerID,

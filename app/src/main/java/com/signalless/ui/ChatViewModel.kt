@@ -76,6 +76,19 @@ class ChatViewModel(
         mediaSendingManager.sendVoiceNote(toPeerIDOrNull, channelOrNull, filePath)
     }
 
+    private val mutableCallRequest = MutableStateFlow<String?>(null)
+
+    /** A peer the user asked to call; the call UI places it once the microphone is allowed. */
+    val callRequest: StateFlow<String?> = mutableCallRequest.asStateFlow()
+
+    fun placeMeshCall(peerID: String) {
+        mutableCallRequest.value = peerID
+    }
+
+    fun onCallRequestHandled() {
+        mutableCallRequest.value = null
+    }
+
     fun createVoiceRecorder(toPeerIDOrNull: String?, channelOrNull: String?): VoiceRecorder {
         val context = getApplication<Application>().applicationContext
         if (!LiveVoicePreferences.isEnabled(context)) return VoiceRecorder(context)
@@ -1461,6 +1474,9 @@ class ChatViewModel(
 
     private suspend fun performPanicClearAllData() {
         Log.w(TAG, "🚨 PANIC MODE ACTIVATED - Clearing all sensitive data")
+        com.signalless.app.service.CallService.command(
+            getApplication(), com.signalless.app.service.CallService.ACTION_HANGUP
+        )
         try {
             com.signalless.app.geohash.LocationChannelManager
                 .getInstance(getApplication())

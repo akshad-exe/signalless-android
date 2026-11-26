@@ -1426,6 +1426,16 @@ class WifiAwareMeshService(private val context: Context) : MeshService, Transpor
         meshCore.sendVoiceFrame(recipientPeerID, payload)
     }
 
+    fun sendCallPayload(
+        recipientPeerID: String,
+        type: com.signalless.app.model.NoisePayloadType,
+        payload: ByteArray
+    ): Boolean = meshCore.sendCallPayload(recipientPeerID, type, payload)
+
+    override fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
+        meshCore.sendCallSignal(recipientPeerID, payload)
+    }
+
     override fun prepareFilePrivate(
         recipientPeerID: String,
         file: SignalLessFilePacket,

@@ -2196,6 +2196,20 @@ fun PrivateChatSheet(
                         },
                         title = titleText
                     ) {
+                        if (!isNostrPeer && !isNostrReachableFavorite) {
+                            ConversationHeaderAction(
+                                onClick = { viewModel.placeMeshCall(activeMeshPeerID ?: peerID) },
+                                contentDescription = stringResource(R.string.cd_start_call)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Call,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(HeaderIconSize),
+                                    tint = colorScheme.primary
+                                )
+                            }
+                        }
+
                         ConversationHeaderAction(
                             onClick = { viewModel.toggleFavorite(peerID) },
                             contentDescription = if (isFavorite) {

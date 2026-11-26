@@ -667,6 +667,37 @@ class MeshCore(
         voiceFrameQueue.trySend(VoiceFrameRequest(recipientPeerID, payload.copyOf()))
     }
 
+    fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
+        if (payload.isEmpty() || !encryptionService.hasEstablishedSession(recipientPeerID)) return
+        sendNoisePayloadToPeer(
+            NoisePayload(NoisePayloadType.CALL_SIGNAL, payload),
+            recipientPeerID
+        )
+    }
+
+    /** Sends one call audio or path packet over a direct link of this transport. Never floods it. */
+    fun sendCallPayload(recipientPeerID: String, type: NoisePayloadType, payload: ByteArray): Boolean {
+        if (!encryptionService.hasEstablishedSession(recipientPeerID)) return false
+        return try {
+            val unsigned = com.signalless.app.features.call.callPacket(
+                senderID = MeshPacketUtils.hexStringToByteArray(myPeerID),
+                recipientID = MeshPacketUtils.hexStringToByteArray(recipientPeerID),
+                ciphertext = encryptionService.encrypt(
+                    NoisePayload(type, payload).encode(),
+                    recipientPeerID
+                ),
+                hops = emptyList(),
+                timestampMs = System.currentTimeMillis()
+            )
+            val signature = unsigned.toBinaryDataForSigning()
+                ?.let(encryptionService::signData) ?: return false
+            transport.sendPacketToPeer(recipientPeerID, unsigned.copy(signature = signature))
+        } catch (e: Exception) {
+            Log.w("MeshCore", "Call audio send failed: ${e.message}")
+            false
+        }
+    }
+
     private fun dispatchVoiceFrame(request: VoiceFrameRequest) {
         try {
             val recipientPeerID = request.recipientPeerID

@@ -9,6 +9,7 @@ buildTools = "37.0.0"
 
 # AndroidX Core
 core-ktx = "1.19.0"
+core-telecom = "1.1.0"
 lifecycle-runtime = "2.11.0"
 activity-compose = "1.13.0"
 appcompat = "1.7.1"
@@ -75,6 +76,7 @@ roboelectric = "4.15" # 4.16+ drops the AndroidKeyStore shim; breaks EncryptionS
 [libraries]
 # AndroidX Core
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
+androidx-core-telecom = { module = "androidx.core:core-telecom", version.ref = "core-telecom" }
 androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle-runtime" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle-runtime" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }

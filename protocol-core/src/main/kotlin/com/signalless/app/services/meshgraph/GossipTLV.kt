@@ -1,6 +1,6 @@
 package com.signalless.app.services.meshgraph
 
-import android.util.Log
+import com.signalless.app.util.SLog
 
 /**
  * Gossip TLV helpers for embedding direct neighbor peer IDs in ANNOUNCE payloads.
@@ -18,7 +18,7 @@ object GossipTLV {
         val valueBytes = unique.flatMap { id -> hexStringPeerIdTo8Bytes(id).toList() }.toByteArray()
         if (valueBytes.size > 255) {
             // Safety check, though 10*8 = 80 bytes, so well under 255
-            Log.w("GossipTLV", "Neighbors value exceeds 255, truncating")
+            SLog.w("GossipTLV", "Neighbors value exceeds 255, truncating")
         }
         return byteArrayOf(DIRECT_NEIGHBORS_TYPE.toByte(), valueBytes.size.toByte()) + valueBytes
     }

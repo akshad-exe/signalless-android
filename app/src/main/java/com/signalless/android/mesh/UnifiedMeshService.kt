@@ -3,10 +3,14 @@ package com.signalless.android.mesh
 import android.content.Context
 import android.util.Log
 import com.signalless.app.favorites.FavoriteControlMessage
+import com.signalless.app.features.call.CallMeshLink
+import com.signalless.app.services.meshgraph.RoutePlanner
+import com.signalless.app.model.NoisePayloadType
 import com.signalless.app.model.SignalLessFilePacket
 import com.signalless.app.model.SignalLessMessage
 import com.signalless.app.noise.NoiseSession
 import com.signalless.app.wifiaware.WifiAwareController
+import com.signalless.app.wifiaware.WifiAwareMeshService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,7 +38,7 @@ import com.signalless.app.mesh.PrivateMediaPreparation
 class UnifiedMeshService(
     private val context: Context,
     private val bluetooth: BluetoothMeshService
-) : MeshService, BluetoothMeshDelegate {
+) : MeshService, BluetoothMeshDelegate, CallMeshLink {
 
     companion object {
         private const val TAG = "UnifiedMeshService"
@@ -189,6 +193,42 @@ class UnifiedMeshService(
             else -> wifiService()?.sendVoiceFrame(recipientPeerID, payload)
         }
     }
+
+    override fun sendCallSignal(recipientPeerID: String, payload: ByteArray) {
+        when {
+            isBleReady(recipientPeerID) -> bluetooth.sendCallSignal(recipientPeerID, payload)
+            isWifiReady(recipientPeerID) -> wifiService()?.sendCallSignal(recipientPeerID, payload)
+            isBleConnected(recipientPeerID) || (isBleEnabled() && !isWifiConnected(recipientPeerID)) ->
+                bluetooth.sendCallSignal(recipientPeerID, payload)
+            else -> wifiService()?.sendCallSignal(recipientPeerID, payload)
+                ?: bluetooth.sendCallSignal(recipientPeerID, payload)
+        }
+    }
+
+    override fun isWifiAwareDirect(peerID: String): Boolean = isWifiReady(peerID) &&
+        runCatching { wifiService()?.getPeerInfo(peerID)?.isDirectConnection == true }.getOrDefault(false)
+
+    override fun isBleDirect(peerID: String): Boolean = isBleEnabled() &&
+        runCatching { bluetooth.getPeerInfo(peerID)?.isDirectConnection == true }.getOrDefault(false)
+
+    override fun hasBleSession(peerID: String): Boolean =
+        isBleEnabled() && hasEstablishedSessionOnBluetooth(peerID)
+
+    override fun meshPath(peerID: String): List<String>? = RoutePlanner.shortestPath(myPeerID, peerID)
+
+    override fun sendWifiAwareCall(
+        peerID: String,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean =
+        (wifiService() as? WifiAwareMeshService)?.sendCallPayload(peerID, type, payload) == true
+
+    override fun sendBleCall(
+        peerID: String,
+        hops: List<String>,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean = bluetooth.sendCallPayload(peerID, hops, type, payload)
 
     override fun prepareFilePrivate(
         recipientPeerID: String,
