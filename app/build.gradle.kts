@@ -187,6 +187,9 @@ dependencies {
     // Only included in tor flavor to reduce APK size for standard builds
     // Note: AAR is kept in libs/ for reference, but libraries loaded from jniLibs/
 
+    // Self-managed calls
+    implementation(libs.androidx.core.telecom)
+
     // Google Play Services Location
     implementation(libs.gms.location)
 
