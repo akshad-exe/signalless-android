@@ -170,6 +170,9 @@ class MessageHandler(private val myPeerID: String, private val appContext: andro
                     delegate?.onCallSignalReceived(peerID, noisePayload.data)
                 }
 
+                // Delivered to the call service in a later change; dropped until then.
+                com.signalless.app.model.NoisePayloadType.CALL_AUDIO -> Unit
+
                 com.signalless.app.model.NoisePayloadType.VOICE_FRAME -> {
                     return LiveVoiceManager.getInstance(appContext).handleFrame(
                         peerID = peerID,

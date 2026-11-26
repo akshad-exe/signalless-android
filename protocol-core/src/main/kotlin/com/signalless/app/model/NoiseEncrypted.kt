@@ -14,7 +14,7 @@ package com.signalless.app.model
 /**
  * Types of payloads embedded within noiseEncrypted messages
  * Shared values match iOS NoisePayloadType.
- * CALL_SIGNAL is SignalLess-only; clients that do not know it drop the payload.
+ * CALL_SIGNAL and CALL_AUDIO are SignalLess-only; clients that do not know it drop the payload.
  */
 enum class NoisePayloadType(val value: UByte) {
     PRIVATE_MESSAGE(0x01u),     // Private chat message with TLV encoding
@@ -23,6 +23,8 @@ enum class NoisePayloadType(val value: UByte) {
     VOICE_FRAME(0x08u),         // Ephemeral live push-to-talk frame
     /** SignalLess mesh-call setup. Unknown to older clients, which drop it. */
     CALL_SIGNAL(0x30u),
+    /** SignalLess mesh-call audio. Live only, never stored. */
+    CALL_AUDIO(0x31u),
     VERIFY_CHALLENGE(0x10u),    // Verification challenge
     VERIFY_RESPONSE(0x11u),     // Verification response
     FILE_TRANSFER(0x20u),
