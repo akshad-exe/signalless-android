@@ -60,6 +60,11 @@ gen/
 !tools/arti-build/Cargo.lock
 .goosehints
 
+# .NET helper build output
+relay-ble-helper/bin/
+relay-ble-helper/obj/
+.vs/
+
 # Google services
 google-services.json
 

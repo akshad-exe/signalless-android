@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.signalless.android.mesh.PowerManager
+import com.signalless.android.mesh.PowerProfileResolver
 
 class PowerProfileResolverTest {
 

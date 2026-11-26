@@ -1,0 +1,235 @@
+name: Desktop relay
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    tags: ["relay-v*"]
+    paths:
+      - "relay-desktop/**"
+      - "relay-ble-helper/**"
+      - "protocol-core/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - ".github/workflows/relay-desktop.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "relay-desktop/**"
+      - "relay-ble-helper/**"
+      - "protocol-core/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - ".github/workflows/relay-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  kotlin-core:
+    name: Test Kotlin relay
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up and validate Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Run relay tests
+        run: ./gradlew :relay-desktop:test --console=plain --configure-on-demand
+
+      - name: Build runnable distribution
+        run: ./gradlew :relay-desktop:installDist --console=plain --configure-on-demand
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: relay-test-reports
+          path: relay-desktop/build/reports/tests/
+          if-no-files-found: ignore
+
+  windows-helper:
+    name: Build Windows BLE helper
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build helper
+        shell: pwsh
+        run: dotnet build relay-ble-helper/RelayBleHelper.csproj -c Release --nologo -warnaserror
+
+      - name: Publish self-contained helper
+        shell: pwsh
+        run: >
+          dotnet publish relay-ble-helper/RelayBleHelper.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:DebugType=None -p:DebugSymbols=false
+          --nologo -o out/helper
+
+      - name: Upload helper
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: relay-ble-helper-win-x64
+          path: out/helper
+          if-no-files-found: error
+
+  windows-package:
+    name: Package Windows relay
+    needs: [kotlin-core, windows-helper]
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/relay-v')
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download helper
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: relay-ble-helper-win-x64
+          path: helper
+
+      - name: Set up and validate Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Build Windows distribution
+        shell: pwsh
+        run: .\gradlew.bat :relay-desktop:installDist --console=plain --configure-on-demand
+
+      - name: Check Windows native runtime
+        shell: pwsh
+        run: |
+          $lib = "relay-desktop/build/install/relay-desktop/lib"
+          if (!(Get-ChildItem $lib -Filter "skiko-awt-runtime-windows-x64-*.jar")) {
+            throw "Windows Skiko runtime is missing from $lib"
+          }
+          "Windows Skiko runtime present"
+
+      - name: Create app image
+        shell: pwsh
+        run: >
+          jpackage
+          --type app-image
+          --name SignalLessRelay
+          --app-version "0.3.0"
+          --input relay-desktop/build/install/relay-desktop/lib
+          --main-jar relay-desktop.jar
+          --main-class com.signalless.relay.MainKt
+          --add-modules "java.desktop,jdk.unsupported,jdk.crypto.ec"
+          --win-console
+          --dest out/package
+          --java-options "-Xmx512m"
+
+      - name: Smoke test packaged app
+        shell: pwsh
+        run: |
+          $exe = "out/package/SignalLessRelay/SignalLessRelay.exe"
+          if (!(Test-Path $exe)) { throw "jpackage did not create $exe" }
+
+          $help = & $exe --help 2>&1 | Out-String
+          if ($help -notmatch "Usage: relay-desktop") {
+            throw "packaged --help did not print usage: $help"
+          }
+          if ($help -notmatch "--no-ui") {
+            throw "packaged --help is missing the UI flags: $help"
+          }
+          $version = & $exe --version 2>&1 | Out-String
+          if ($version -notmatch "relay-desktop 0\.3\.0") {
+            throw "packaged version mismatch: $version"
+          }
+
+          $stdout = "out/package/smoke.out.txt"
+          $stderr = "out/package/smoke.err.txt"
+          $proc = Start-Process -FilePath $exe `
+            -ArgumentList @("--no-ui", "--transport", "fake") `
+            -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 6
+          if ($proc.HasExited) {
+            throw "packaged headless smoke exited early: $((Get-Content $stderr -Raw -ErrorAction SilentlyContinue))"
+          }
+          Stop-Process -Id $proc.Id -Force
+          Start-Sleep -Milliseconds 300
+          $startup = (Get-Content $stdout -Raw -ErrorAction SilentlyContinue) +
+            (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+          if ($startup -notmatch "relay core started") {
+            throw "packaged headless smoke never reached the core: $startup"
+          }
+          "packaged smoke ok"
+
+      - name: Assemble release folder
+        shell: pwsh
+        run: |
+          $app = "out/package/SignalLessRelay"
+          if (!(Test-Path $app)) { throw "jpackage did not create $app" }
+          Remove-Item "out/package/smoke.*.txt" -ErrorAction SilentlyContinue
+          Copy-Item helper/* $app -Recurse -Force
+          Copy-Item relay-desktop/README.md $app/README.md
+          Copy-Item relay-desktop/UI-PLAN.md $app/UI-PLAN.md
+          Copy-Item relay-desktop/RELEASE-NOTES.md $app/RELEASE-NOTES.md
+          Copy-Item relay-desktop/run-relay.cmd $app/run-relay.cmd
+          Copy-Item relay-ble-helper/README.md $app/HELPER-README.md
+          Compress-Archive -Path "$app/*" -DestinationPath "out/package/SignalLessRelay-windows-x64.zip" -Force
+
+      - name: Check package size
+        shell: pwsh
+        run: |
+          $zip = Get-Item "out/package/SignalLessRelay-windows-x64.zip"
+          $limit = 125MB
+          if ($zip.Length -gt $limit) {
+            throw "zip is $([math]::Round($zip.Length / 1MB, 1)) MB, over the 125 MB budget"
+          }
+          $app = "out/package/SignalLessRelay"
+          $appBytes = (Get-ChildItem $app -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          "app-image=$([math]::Round($appBytes / 1MB, 1)) MB zip=$([math]::Round($zip.Length / 1MB, 1)) MB"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SignalLessRelay-windows-x64
+          path: out/package/SignalLessRelay-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Attach package to release
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'relay-v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $asset = "out/package/SignalLessRelay-windows-x64.zip"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $asset --title "SignalLess Relay $tag" --notes-file relay-desktop/RELEASE-NOTES.md
+          } else {
+            gh release upload $tag $asset --clobber
+            gh release edit $tag --notes-file relay-desktop/RELEASE-NOTES.md
+          }

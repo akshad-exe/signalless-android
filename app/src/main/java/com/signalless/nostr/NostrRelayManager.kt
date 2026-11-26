@@ -116,8 +116,8 @@ class NostrRelayManager private constructor() {
     
     // Subscription validation timer
     private var subscriptionValidationJob: Job? = null
-    private val powerManager: com.signalless.app.mesh.PowerManager?
-        get() = appContext?.let { com.signalless.app.mesh.PowerManager.getInstance(it) }
+    private val powerManager: com.signalless.android.mesh.PowerManager?
+        get() = appContext?.let { com.signalless.android.mesh.PowerManager.getInstance(it) }
     @Volatile private var appContext: android.content.Context? = null
     
     // OkHttp client for WebSocket connections (via provider to honor Tor)

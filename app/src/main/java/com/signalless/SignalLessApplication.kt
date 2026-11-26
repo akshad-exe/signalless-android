@@ -1,9 +1,11 @@
 package com.signalless.app
 
 import android.app.Application
+import android.util.Log
 import com.signalless.app.nostr.RelayDirectory
 import com.signalless.app.ui.theme.ThemePreferenceManager
 import com.signalless.app.net.ArtiTorManager
+import com.signalless.app.util.SLog
 
 /**
  * Main application class for SignalLess Android
@@ -13,8 +15,19 @@ class SignalLessApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // protocol-core cannot depend on android.util.Log, so route its facade to logcat.
+        SLog.sink = { level, tag, message, throwable ->
+            when (level) {
+                'd' -> Log.d(tag, message, throwable)
+                'i' -> Log.i(tag, message, throwable)
+                'w' -> Log.w(tag, message, throwable)
+                'e' -> Log.e(tag, message, throwable)
+                else -> Log.v(tag, message, throwable)
+            }
+        }
+
         // Start the single process-wide power policy before transport components are constructed.
-        com.signalless.app.mesh.PowerManager.getInstance(this).start()
+        com.signalless.android.mesh.PowerManager.getInstance(this).start()
 
         // Initialize Tor first so any early network goes over Tor
         try {

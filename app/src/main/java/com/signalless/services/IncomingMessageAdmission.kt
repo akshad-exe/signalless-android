@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
  */
 internal object IncomingMessageAdmission {
     fun admitToAppState(message: SignalLessMessage): Boolean = try {
+        val channel = message.channel
         when {
             message.isPrivate -> {
                 val peerID = message.senderPeerID?.takeIf(String::isNotBlank)
@@ -24,8 +25,8 @@ internal object IncomingMessageAdmission {
                 }
             }
 
-            message.channel != null -> {
-                AppStateStore.addChannelMessage(message.channel, message)
+            channel != null -> {
+                AppStateStore.addChannelMessage(channel, message)
                 true
             }
 

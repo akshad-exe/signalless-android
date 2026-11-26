@@ -16,6 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.signalless.android.mesh.AuthenticatedPeerStateCoordinator
+import com.signalless.android.mesh.AuthenticatedPeerStateStore
 
 class AuthenticatedPeerStateCoordinatorTest {
     private class MemoryStore : AuthenticatedPeerStateStore {
