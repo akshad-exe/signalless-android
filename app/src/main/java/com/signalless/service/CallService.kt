@@ -424,6 +424,13 @@ class CallService : Service(), TelecomBridge.Listener {
         fun intent(context: Context, action: String): Intent =
             Intent(context, CallService::class.java).setAction(action)
 
+        /** Tells the running call to act. Does nothing when there is no call. */
+        fun command(context: Context, action: String, enabled: Boolean = false) {
+            // The service exists whenever a call is visible, so a plain start is allowed.
+            if (!state.value.visible) return
+            context.startService(intent(context, action).putExtra(EXTRA_ENABLED, enabled))
+        }
+
         /** Starts an outgoing call. The caller must already hold the microphone permission. */
         fun place(context: Context, peerID: String) {
             ContextCompat.startForegroundService(

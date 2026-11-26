@@ -20,8 +20,7 @@ import java.util.Locale
  */
 class VoiceRecorder(
     private val context: Context,
-    private val liveTarget: LiveVoiceTarget? = null,
-    private val voiceCommunication: Boolean = false
+    private val liveTarget: LiveVoiceTarget? = null
 ) {
     companion object { private const val TAG = "VoiceRecorder" }
 
@@ -39,28 +38,15 @@ class VoiceRecorder(
         stop() // ensure previous session closed
         if (liveTarget != null) {
             val directory = File(context.filesDir, "voicenotes/outgoing")
-            val preferredSource = if (voiceCommunication) {
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION
-            } else {
-                MediaRecorder.AudioSource.MIC
-            }
-            val capture = startLive(directory, preferredSource)
-            if (capture != null) return capture
-            if (voiceCommunication && preferredSource != MediaRecorder.AudioSource.MIC) {
-                val fallback = startLive(directory, MediaRecorder.AudioSource.MIC)
-                if (fallback != null) return fallback
-                return null
+            val capture = LiveVoiceCapture(directory, liveTarget)
+            val liveFile = capture.start()
+            if (liveFile != null) {
+                liveCapture = capture
+                outFile = liveFile
+                return liveFile
             }
         }
         return startClassic()
-    }
-
-    private fun startLive(directory: File, audioSource: Int): File? {
-        val capture = LiveVoiceCapture(directory, liveTarget ?: return null, audioSource = audioSource)
-        val liveFile = capture.start() ?: return null
-        liveCapture = capture
-        outFile = liveFile
-        return liveFile
     }
 
     private fun startClassic(): File? {

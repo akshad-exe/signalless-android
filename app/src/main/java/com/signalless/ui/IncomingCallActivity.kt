@@ -69,17 +69,13 @@ class IncomingCallActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_ANSWER, false)) answer()
     }
 
+    private fun command(action: String, enabled: Boolean = false) =
+        CallService.command(this, action, enabled)
+
     private fun answer() {
         val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) command(CallService.ACTION_ANSWER) else microphone.launch(Manifest.permission.RECORD_AUDIO)
-    }
-
-    private fun command(action: String, enabled: Boolean = false) {
-        // The service exists whenever a call does; with no call there is nothing to command.
-        if (CallService.state.value.visible) {
-            startService(CallService.intent(this, action).putExtra(CallService.EXTRA_ENABLED, enabled))
-        }
     }
 
     companion object {

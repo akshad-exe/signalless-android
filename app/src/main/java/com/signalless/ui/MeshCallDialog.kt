@@ -1,6 +1,7 @@
 package com.signalless.app.ui
 
 import android.Manifest
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,12 +28,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,35 +43,67 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.signalless.app.R
 import com.signalless.app.features.call.CallEndReason
 import com.signalless.app.features.call.CallPhase
 import com.signalless.app.features.call.MeshCallState
+import com.signalless.app.service.CallService
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun MeshCallDialog(viewModel: ChatViewModel) {
-    val state by viewModel.callState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val state by CallService.state.collectAsStateWithLifecycle()
+    val request by viewModel.callRequest.collectAsStateWithLifecycle()
+    var afterGrant by remember { mutableStateOf<(() -> Unit)?>(null) }
     val microphone = rememberPermissionState(Manifest.permission.RECORD_AUDIO) { granted ->
-        viewModel.onCallMicrophoneResult(granted)
+        if (granted) {
+            afterGrant?.invoke()
+        } else {
+            Toast.makeText(context, R.string.call_ended_microphone, Toast.LENGTH_LONG).show()
+            // Declines a ringing call that cannot be answered.
+            CallService.command(context, CallService.ACTION_HANGUP)
+        }
+        afterGrant = null
     }
-    LaunchedEffect(state.needsMicrophone) {
-        if (state.needsMicrophone) microphone.launchPermissionRequest()
+    fun withMicrophone(action: () -> Unit) {
+        if (microphone.status.isGranted) {
+            action()
+        } else {
+            afterGrant = action
+            microphone.launchPermissionRequest()
+        }
+    }
+    LaunchedEffect(request) {
+        val peerID = request ?: return@LaunchedEffect
+        viewModel.onCallRequestHandled()
+        withMicrophone { CallService.place(context, peerID) }
     }
     if (!state.visible) return
 
-    Dialog(onDismissRequest = viewModel::dismissCall) {
+    fun command(action: String, enabled: Boolean = false) =
+        CallService.command(context, action, enabled)
+    // Back clears a finished or still connecting call; a live call stays until hung up.
+    Dialog(onDismissRequest = {
+        if (state.endReason != null || state.connecting) command(CallService.ACTION_HANGUP)
+    }) {
         MeshCallCard(
             state = state,
             actions = CallUiActions(
-                dismiss = viewModel::dismissCall,
-                accept = viewModel::acceptCall,
-                decline = viewModel::declineCall,
-                hangup = viewModel::hangupCall,
-                setMuted = viewModel::setCallMuted,
-                setSpeaker = viewModel::setCallSpeaker
+                dismiss = { command(CallService.ACTION_HANGUP) },
+                accept = {
+                    withMicrophone {
+                        command(CallService.ACTION_ANSWER)
+                        state.peerID?.let(viewModel::showPrivateChatSheet)
+                    }
+                },
+                decline = { command(CallService.ACTION_HANGUP) },
+                hangup = { command(CallService.ACTION_HANGUP) },
+                setMuted = { command(CallService.ACTION_MUTE, it) },
+                setSpeaker = { command(CallService.ACTION_SPEAKER, it) }
             )
         )
     }

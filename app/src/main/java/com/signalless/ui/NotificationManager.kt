@@ -59,7 +59,6 @@ class NotificationManager(
         const val EXTRA_PEER_ID = "peer_id"
         const val EXTRA_SENDER_NICKNAME = "sender_nickname"
         const val EXTRA_GEOHASH = "geohash"
-
         const val ACTION_REPLY_TO_CONVERSATION =
             "com.signalless.app.action.REPLY_TO_CONVERSATION"
         const val ACTION_MARK_CONVERSATION_READ =
