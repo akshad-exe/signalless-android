@@ -94,6 +94,17 @@ class CallPathMonitorTest {
     }
 
     @Test
+    fun aMutedPeerRecoversEvenAfterALossySecond() {
+        for (second in 1..5) monitor.tick(second * 1_000L)
+        monitor.onAudio(0, 3, 5_100L)
+        monitor.onAudio(30, 3, 5_200L)
+        assertTrue(monitor.tick(6_000L))
+        // Muted from here: only keepalives arrive.
+        monitor.onSignal(signal(CallAction.KEEPALIVE, CallSignal.PATH_ROUTED_BLE, true), 6_500L)
+        assertFalse(monitor.tick(7_000L))
+    }
+
+    @Test
     fun peerRequestedSwitchIsFollowed() {
         monitor.onSignal(signal(CallAction.PATH_SWITCH, CallSignal.PATH_ROUTED_BLE), 100L)
         assertEquals(routed, transport.path)

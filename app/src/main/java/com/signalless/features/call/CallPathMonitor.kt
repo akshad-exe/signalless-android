@@ -93,10 +93,9 @@ class CallPathMonitor(
     }
 
     private fun measureLoss() {
-        if (expected > 0) {
-            val lost = (expected - received).coerceAtLeast(0)
-            lossyTicks = if (lost * 100 > expected * LOSS_PERCENT) lossyTicks + 1 else 0
-        }
+        // No audio is not loss (the peer may be muted); the silence timeout covers a dead path.
+        val lost = (expected - received).coerceAtLeast(0)
+        lossyTicks = if (lost * 100 > expected * LOSS_PERCENT) lossyTicks + 1 else 0
         expected = 0
         received = 0
     }
