@@ -1,5 +1,6 @@
 package com.signalless.app.features.call
 
+import com.signalless.app.model.NoisePayloadType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -78,7 +79,23 @@ internal class FakeCallMeshLink : CallMeshLink {
     override fun isBleDirect(peerID: String) = peerID in bleDirect
     override fun hasBleSession(peerID: String) = session
     override fun meshPath(peerID: String) = path
-    override fun sendWifiAwareCallAudio(peerID: String, payload: ByteArray) = wifi
-    override fun sendBleCallAudio(peerID: String, hops: List<String>, payload: ByteArray) =
-        (hops.firstOrNull() ?: peerID) in bleDirect
+    /** Path signals sent, with the path they left on. */
+    val signals = mutableListOf<Pair<Int, CallSignal>>()
+
+    override fun sendWifiAwareCall(peerID: String, type: NoisePayloadType, payload: ByteArray) =
+        wifi.also { if (it) record(CallSignal.PATH_WIFI_AWARE, type, payload) }
+
+    override fun sendBleCall(
+        peerID: String,
+        hops: List<String>,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ) = ((hops.firstOrNull() ?: peerID) in bleDirect).also {
+        val bit = if (hops.isEmpty()) CallSignal.PATH_DIRECT_BLE else CallSignal.PATH_ROUTED_BLE
+        if (it) record(bit, type, payload)
+    }
+
+    private fun record(bit: Int, type: NoisePayloadType, payload: ByteArray) {
+        if (type == NoisePayloadType.CALL_SIGNAL) signals += bit to CallSignal.decode(payload)!!
+    }
 }

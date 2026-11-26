@@ -15,7 +15,13 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import android.os.SystemClock
+import com.signalless.app.features.call.CallAction
 import com.signalless.app.features.call.CallAudioEngine
+import com.signalless.app.features.call.CallAudioPacket
+import com.signalless.app.features.call.CallPath
+import com.signalless.app.features.call.CallPathMonitor
+import kotlinx.coroutines.withContext
 import com.signalless.app.features.call.CallTransport
 import com.signalless.app.features.call.CallEndReason
 import com.signalless.app.features.call.CallNotifications
@@ -64,6 +70,9 @@ class CallService : Service(), TelecomBridge.Listener {
     @Volatile
     private var audioPeer: String? = null
 
+    @Volatile
+    private var monitor: CallPathMonitor? = null
+
     private val mesh get() = MeshServiceHolder.getUnifiedOrCreate(applicationContext)
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -75,6 +84,17 @@ class CallService : Service(), TelecomBridge.Listener {
         scope.launch {
             while (isActive) {
                 delay(1_000L)
+                monitor?.let { current ->
+                    val reconnecting = withContext(Dispatchers.IO) {
+                        current.tick(SystemClock.elapsedRealtime())
+                    }
+                    if (monitor === current) {
+                        dispatch {
+                            session.setReconnecting(reconnecting, System.currentTimeMillis())
+                            emptyList()
+                        }
+                    }
+                }
                 dispatch { session.tick(System.currentTimeMillis()) }
             }
         }
@@ -87,7 +107,7 @@ class CallService : Service(), TelecomBridge.Listener {
             ACTION_PLACE -> place(peerID)
             ACTION_SIGNAL -> intent.getByteArrayExtra(EXTRA_PAYLOAD)
                 ?.let(CallSignal::decode)
-                ?.let { signal -> dispatch { session.onRemote(peerID, signal, System.currentTimeMillis()) } }
+                ?.let { signal -> onSignal(peerID, signal) }
             ACTION_ANSWER -> dispatch { session.accept(System.currentTimeMillis()) }
             ACTION_HANGUP -> hangup()
             ACTION_MUTE -> {
@@ -152,6 +172,18 @@ class CallService : Service(), TelecomBridge.Listener {
         }
     }
 
+    private fun onSignal(peerID: String, signal: CallSignal) {
+        if (signal.action in PATH_ACTIONS) {
+            val snapshot = session.snapshot()
+            val current = monitor ?: return
+            if (snapshot.peerID != peerID || snapshot.callId?.contentEquals(signal.callId) != true) return
+            // Replies are sent from here, and a socket write must not run on the main thread.
+            scope.launch(Dispatchers.IO) { current.onSignal(signal, SystemClock.elapsedRealtime()) }
+        } else {
+            dispatch { session.onRemote(peerID, signal, System.currentTimeMillis()) }
+        }
+    }
+
     private fun hangup() {
         connecting?.cancel()
         connectingPeer = null
@@ -171,7 +203,8 @@ class CallService : Service(), TelecomBridge.Listener {
         val after = session.snapshot()
         effects.forEach { mesh.sendCallSignal(it.peerID, it.signal.encode()) }
         val changed = before.phase != after.phase || before.endReason != after.endReason ||
-            before.onHold != after.onHold || before.peerID != after.peerID
+            before.onHold != after.onHold || before.reconnecting != after.reconnecting ||
+            before.peerID != after.peerID
         if (!changed) return
 
         if (before.phase == CallPhase.IDLE && after.phase != CallPhase.IDLE) {
@@ -188,7 +221,7 @@ class CallService : Service(), TelecomBridge.Listener {
             }
             val transport = CallTransport(mesh, checkNotNull(after.peerID), after.remotePathMask)
             val failure = when {
-                !transport.hasPath() -> CallEndReason.UNREACHABLE
+                transport.available().isEmpty() -> CallEndReason.UNREACHABLE
                 !startAudio(after, transport) -> CallEndReason.MICROPHONE
                 else -> null
             }
@@ -236,7 +269,8 @@ class CallService : Service(), TelecomBridge.Listener {
             muted = muted,
             speakerOn = speakerOn,
             connecting = connectingPeer != null && snapshot.phase == CallPhase.IDLE,
-            onHold = snapshot.onHold
+            onHold = snapshot.onHold,
+            reconnecting = snapshot.reconnecting
         )
         updateProximity()
         if (mutableState.value.visible) showForeground()
@@ -296,21 +330,31 @@ class CallService : Service(), TelecomBridge.Listener {
         cpuLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SignalLess:call")
             .also { it.acquire() }
+        // shortcut: the bit rate follows the first path only; changing it needs a new encoder.
+        val bitRate = if (transport.available().firstOrNull() == CallPath.WifiAware) {
+            VoiceCodecs.OPUS_WIFI_BIT_RATE
+        } else {
+            VoiceCodecs.OPUS_BLE_BIT_RATE
+        }
         val started = CallAudioEngine(
             callId,
-            VoiceCodecs.create(codec),
+            VoiceCodecs.create(codec, bitRate),
             send = { transport.send(it) },
             onFailure = { scope.launch { hangup() } }
         )
         if (!started.start()) return false
         audioPeer = peerID
         engine = started
+        if (snapshot.supportsPathControl) {
+            monitor = CallPathMonitor(transport, callId, SystemClock.elapsedRealtime())
+        }
         route()
         return true
     }
 
     private fun stopAudio() {
         audioPeer = null
+        monitor = null
         engine?.let { current ->
             engine = null
             // Stopping joins the audio threads, which must not block the main thread.
@@ -368,6 +412,9 @@ class CallService : Service(), TelecomBridge.Listener {
         const val EXTRA_PAYLOAD = "payload"
         const val EXTRA_ENABLED = "enabled"
 
+        private val PATH_ACTIONS =
+            setOf(CallAction.PATH_PROBE, CallAction.PATH_SWITCH, CallAction.KEEPALIVE)
+
         private val mutableState = MutableStateFlow(MeshCallState())
         val state: StateFlow<MeshCallState> = mutableState.asStateFlow()
 
@@ -388,7 +435,7 @@ class CallService : Service(), TelecomBridge.Listener {
         fun deliverSignal(context: Context, peerID: String, payload: ByteArray) {
             val signal = CallSignal.decode(payload) ?: return
             // Only an invite may start the service; late signals for no call are dropped.
-            if (instance == null && signal.action != com.signalless.app.features.call.CallAction.INVITE) return
+            if (instance == null && signal.action != CallAction.INVITE) return
             try {
                 ContextCompat.startForegroundService(
                     context,
@@ -404,7 +451,9 @@ class CallService : Service(), TelecomBridge.Listener {
         /** An authenticated `CALL_AUDIO` packet. Dropped unless it belongs to the live call. */
         fun deliverAudio(peerID: String, payload: ByteArray) {
             val service = instance ?: return
-            if (service.audioPeer == peerID) service.engine?.onPacket(payload)
+            if (service.audioPeer != peerID || service.engine?.onPacket(payload) != true) return
+            val packet = CallAudioPacket.decode(payload) ?: return
+            service.monitor?.onAudio(packet.seq, packet.frames.size, SystemClock.elapsedRealtime())
         }
     }
 }

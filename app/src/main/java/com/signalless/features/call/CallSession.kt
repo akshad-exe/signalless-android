@@ -20,7 +20,11 @@ class CallSession(
         /** True while either side has the call on hold. */
         val onHold: Boolean = false,
         /** Audio paths the peer supports. */
-        val remotePathMask: Int = CallSignal.V1_PATHS
+        val remotePathMask: Int = CallSignal.V1_PATHS,
+        /** True while the active call has lost a usable audio path. */
+        val reconnecting: Boolean = false,
+        /** False for a version 1 peer, which has no path signals. */
+        val supportsPathControl: Boolean = true
     )
 
     data class Effect(val peerID: String, val signal: CallSignal)
@@ -35,6 +39,7 @@ class CallSession(
     private var replyVersion = CallSignal.VERSION_2
     private var remoteCodecMask = CallCodec.AAC_LC.mask
     private var remotePathMask = CallSignal.V1_PATHS
+    private var reconnectingSinceMs: Long? = null
     private var localHold = false
     private var remoteHold = false
 
@@ -48,7 +53,9 @@ class CallSession(
             VoiceCodecs.negotiate(localCodecMask, remoteCodecMask) ?: CallCodec.AAC_LC
         } else null,
         onHold = localHold || remoteHold,
-        remotePathMask = remotePathMask
+        remotePathMask = remotePathMask,
+        reconnecting = reconnectingSinceMs != null,
+        supportsPathControl = replyVersion == CallSignal.VERSION_2
     )
 
     /** Holds or resumes this side, for example while a cellular call is answered. */
@@ -61,6 +68,11 @@ class CallSession(
         if (replyVersion == CallSignal.VERSION_1) return emptyList()
         val action = if (held) CallAction.HOLD else CallAction.RESUME
         return listOf(Effect(peer, signal(action, id)))
+    }
+
+    fun setReconnecting(reconnecting: Boolean, nowMs: Long) {
+        if (phase != CallPhase.ACTIVE) return
+        reconnectingSinceMs = if (reconnecting) reconnectingSinceMs ?: nowMs else null
     }
 
     private fun signal(action: CallAction, id: ByteArray) =
@@ -152,6 +164,10 @@ class CallSession(
     }
 
     fun tick(nowMs: Long): List<Effect> {
+        val lostAt = reconnectingSinceMs
+        if (lostAt != null && nowMs - lostAt >= RECONNECT_TIMEOUT_MS) {
+            return finish(CallAction.HANGUP, CallEndReason.CONNECTION_LOST, nowMs)
+        }
         if (phase != CallPhase.OUTGOING && phase != CallPhase.INCOMING) return emptyList()
         if (nowMs - phaseEnteredAtMs < ringTimeoutMs) return emptyList()
         val action = if (phase == CallPhase.INCOMING) CallAction.DECLINE else CallAction.HANGUP
@@ -223,6 +239,7 @@ class CallSession(
     }
 
     private fun clearHold() {
+        reconnectingSinceMs = null
         localHold = false
         remoteHold = false
     }
@@ -237,6 +254,7 @@ class CallSession(
 
     companion object {
         const val RING_TIMEOUT_MS = 45_000L
+        const val RECONNECT_TIMEOUT_MS = 10_000L
         private const val LOCAL_PATHS = CallSignal.V1_PATHS or CallSignal.PATH_WIFI_AWARE
 
         fun lesserCallId(left: ByteArray?, right: ByteArray): ByteArray {

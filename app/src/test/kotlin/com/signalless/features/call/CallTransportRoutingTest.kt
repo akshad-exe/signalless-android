@@ -24,7 +24,7 @@ class CallTransportRoutingTest {
     private val d = "4444444444444444"
 
     private fun packet(vararg hops: String, size: Int = 32) =
-        callAudioPacket(id(a), id(d), ByteArray(size) { it.toByte() }, hops.map(::id), 1_000L)
+        callPacket(id(a), id(d), ByteArray(size) { it.toByte() }, hops.map(::id), 1_000L)
 
     @Test
     fun directAudioCannotBeRelayed() {

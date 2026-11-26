@@ -1017,15 +1017,20 @@ class BluetoothMeshService(private val context: Context) : TransportBridgeServic
         )
     }
 
-    /** Sends one call audio packet to the first hop only. Never floods, queues or stores it. */
-    fun sendCallAudio(recipientPeerID: String, hops: List<String>, payload: ByteArray): Boolean {
+    /** Sends one call audio or path packet to the first hop only. Never floods, queues or stores it. */
+    fun sendCallPayload(
+        recipientPeerID: String,
+        hops: List<String>,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean {
         if (!encryptionService.hasEstablishedSession(recipientPeerID)) return false
         return try {
-            val unsigned = com.signalless.app.features.call.callAudioPacket(
+            val unsigned = com.signalless.app.features.call.callPacket(
                 senderID = hexStringToByteArray(myPeerID),
                 recipientID = hexStringToByteArray(recipientPeerID),
                 ciphertext = encryptionService.encrypt(
-                    NoisePayload(NoisePayloadType.CALL_AUDIO, payload).encode(),
+                    NoisePayload(type, payload).encode(),
                     recipientPeerID
                 ),
                 hops = hops.map { hexStringToByteArray(it) },

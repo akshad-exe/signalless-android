@@ -181,4 +181,29 @@ class CallSessionTest {
         assertEquals(CallEndReason.DECLINED, declined.snapshot().endReason)
         assertTrue(declined.hangup(3L).isEmpty())
     }
+
+    @Test
+    fun `a call that stays disconnected ends as connection lost`() {
+        val call = CallSession()
+        call.place(bob, highId, 1L)
+        call.onRemote(bob, CallSignal(CallAction.ACCEPT, highId), 2L)
+        call.setReconnecting(true, 1_000L)
+        call.setReconnecting(true, 5_000L)
+        assertTrue(call.snapshot().reconnecting)
+        assertTrue(call.tick(10_999L).isEmpty())
+        assertEquals(CallAction.HANGUP, call.tick(11_000L).single().signal.action)
+        assertEquals(CallEndReason.CONNECTION_LOST, call.snapshot().endReason)
+    }
+
+    @Test
+    fun `recovering restarts the reconnect timeout`() {
+        val call = CallSession()
+        call.place(bob, highId, 1L)
+        call.onRemote(bob, CallSignal(CallAction.ACCEPT, highId), 2L)
+        call.setReconnecting(true, 1_000L)
+        call.setReconnecting(false, 8_000L)
+        call.setReconnecting(true, 9_000L)
+        assertTrue(call.tick(12_000L).isEmpty())
+        assertEquals(CallPhase.ACTIVE, call.snapshot().phase)
+    }
 }

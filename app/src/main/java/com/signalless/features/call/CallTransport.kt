@@ -1,5 +1,6 @@
 package com.signalless.app.features.call
 
+import com.signalless.app.model.NoisePayloadType
 import com.signalless.app.protocol.MessageType
 import com.signalless.app.protocol.SignalLessPacket
 
@@ -17,18 +18,24 @@ interface CallMeshLink {
     /** Known shortest mesh path, `[me, ..., peer]`, or null. */
     fun meshPath(peerID: String): List<String>?
 
-    fun sendWifiAwareCallAudio(peerID: String, payload: ByteArray): Boolean
+    fun sendWifiAwareCall(peerID: String, type: NoisePayloadType, payload: ByteArray): Boolean
 
     /** Sends to the first of [hops], or to the peer itself when [hops] is empty. */
-    fun sendBleCallAudio(peerID: String, hops: List<String>, payload: ByteArray): Boolean
+    fun sendBleCall(
+        peerID: String,
+        hops: List<String>,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean
 }
 
-sealed class CallPath {
-    object WifiAware : CallPath()
-    object DirectBle : CallPath()
+/** [bit] is the path's flag in a call signal's path mask. */
+sealed class CallPath(val bit: Int) {
+    object WifiAware : CallPath(CallSignal.PATH_WIFI_AWARE)
+    object DirectBle : CallPath(CallSignal.PATH_DIRECT_BLE)
 
     /** [hops] are the intermediate peers, in order. */
-    data class RoutedBle(val hops: List<String>) : CallPath()
+    data class RoutedBle(val hops: List<String>) : CallPath(CallSignal.PATH_ROUTED_BLE)
 }
 
 /** Usable paths to a peer, best first: Wi-Fi Aware, direct BLE, routed BLE. */
@@ -58,7 +65,7 @@ class PathSelector(private val link: CallMeshLink) {
     }
 }
 
-/** Sends one call's audio, staying on a path until it stops accepting packets. */
+/** Sends one call's audio, staying on a path until it stops accepting packets or is replaced. */
 class CallTransport(
     private val link: CallMeshLink,
     private val peerID: String,
@@ -70,26 +77,35 @@ class CallTransport(
     var path: CallPath? = null
         private set
 
-    fun hasPath(): Boolean = selector.available(peerID, remotePathMask).isNotEmpty()
+    fun available(): List<CallPath> = selector.available(peerID, remotePathMask)
+
+    fun find(bit: Int): CallPath? = available().firstOrNull { it.bit == bit }
+
+    fun switchTo(next: CallPath) {
+        path = next
+    }
 
     fun send(payload: ByteArray): Boolean {
-        path?.let { if (send(it, payload)) return true }
-        path = selector.available(peerID, remotePathMask).firstOrNull { send(it, payload) }
+        path?.let { if (send(it, NoisePayloadType.CALL_AUDIO, payload)) return true }
+        path = available().firstOrNull { send(it, NoisePayloadType.CALL_AUDIO, payload) }
         return path != null
     }
 
-    private fun send(path: CallPath, payload: ByteArray): Boolean = when (path) {
-        CallPath.WifiAware -> link.sendWifiAwareCallAudio(peerID, payload)
-        CallPath.DirectBle -> link.sendBleCallAudio(peerID, emptyList(), payload)
-        is CallPath.RoutedBle -> link.sendBleCallAudio(peerID, path.hops, payload)
+    fun sendSignal(path: CallPath, payload: ByteArray): Boolean =
+        send(path, NoisePayloadType.CALL_SIGNAL, payload)
+
+    private fun send(path: CallPath, type: NoisePayloadType, payload: ByteArray): Boolean = when (path) {
+        CallPath.WifiAware -> link.sendWifiAwareCall(peerID, type, payload)
+        CallPath.DirectBle -> link.sendBleCall(peerID, emptyList(), type, payload)
+        is CallPath.RoutedBle -> link.sendBleCall(peerID, path.hops, type, payload)
     }
 }
 
 /**
- * The unsigned packet carrying encrypted call audio. Its TTL only covers the route, so a direct
+ * The unsigned packet carrying encrypted call audio or a path signal. Its TTL only covers the route, so a direct
  * packet is never relayed and a relay that loses the route does not flood it.
  */
-fun callAudioPacket(
+fun callPacket(
     senderID: ByteArray,
     recipientID: ByteArray,
     ciphertext: ByteArray,

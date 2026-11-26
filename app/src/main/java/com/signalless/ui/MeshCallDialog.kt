@@ -125,7 +125,9 @@ private fun callStatusText(state: MeshCallState): String {
     return when (state.phase) {
         CallPhase.OUTGOING -> stringResource(R.string.call_outgoing)
         CallPhase.INCOMING -> stringResource(R.string.call_incoming)
-        CallPhase.ACTIVE -> callDuration(state.connectedAtMs)
+        CallPhase.ACTIVE ->
+            if (state.reconnecting) stringResource(R.string.call_reconnecting)
+            else callDuration(state.connectedAtMs)
         CallPhase.IDLE -> ""
     }
 }
@@ -139,6 +141,7 @@ private fun endReasonText(reason: CallEndReason): String = when (reason) {
     CallEndReason.UNAVAILABLE -> stringResource(R.string.call_ended_unavailable)
     CallEndReason.MICROPHONE -> stringResource(R.string.call_ended_microphone)
     CallEndReason.UNREACHABLE -> stringResource(R.string.call_ended_unreachable)
+    CallEndReason.CONNECTION_LOST -> stringResource(R.string.call_ended_connection_lost)
 }
 
 @Composable

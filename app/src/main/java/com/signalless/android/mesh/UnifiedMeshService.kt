@@ -5,6 +5,7 @@ import android.util.Log
 import com.signalless.app.favorites.FavoriteControlMessage
 import com.signalless.app.features.call.CallMeshLink
 import com.signalless.app.services.meshgraph.RoutePlanner
+import com.signalless.app.model.NoisePayloadType
 import com.signalless.app.model.SignalLessFilePacket
 import com.signalless.app.model.SignalLessMessage
 import com.signalless.app.noise.NoiseSession
@@ -215,11 +216,19 @@ class UnifiedMeshService(
 
     override fun meshPath(peerID: String): List<String>? = RoutePlanner.shortestPath(myPeerID, peerID)
 
-    override fun sendWifiAwareCallAudio(peerID: String, payload: ByteArray): Boolean =
-        (wifiService() as? WifiAwareMeshService)?.sendCallAudio(peerID, payload) == true
+    override fun sendWifiAwareCall(
+        peerID: String,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean =
+        (wifiService() as? WifiAwareMeshService)?.sendCallPayload(peerID, type, payload) == true
 
-    override fun sendBleCallAudio(peerID: String, hops: List<String>, payload: ByteArray): Boolean =
-        bluetooth.sendCallAudio(peerID, hops, payload)
+    override fun sendBleCall(
+        peerID: String,
+        hops: List<String>,
+        type: NoisePayloadType,
+        payload: ByteArray
+    ): Boolean = bluetooth.sendCallPayload(peerID, hops, type, payload)
 
     override fun prepareFilePrivate(
         recipientPeerID: String,
